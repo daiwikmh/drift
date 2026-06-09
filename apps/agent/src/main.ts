@@ -9,7 +9,18 @@ const EPOCH_MS = 60_000;
 const optimizer = new GreedyRiskAdjustedOptimizer();
 
 async function tick() {
-  const constraints = await collectConstraints();
+  // Signal collection is real external/on-chain data and runs regardless of
+  // deployment; only proposing is gated on the controller.
+  const [constraints, venues] = await Promise.all([
+    collectConstraints(),
+    collectVenues(),
+  ]);
+  for (const v of venues) {
+    console.log(
+      `[agent] watching ${v.symbol}: supply APY ${((v.supplyApy ?? 0) * 100).toFixed(2)}%`,
+    );
+  }
+
   if (!constraints) {
     console.log(
       `[agent] awaiting deployment — set NEXT_PUBLIC_AGENT_CONTROLLER (chain: ${activeChain.name})`,
@@ -17,7 +28,6 @@ async function tick() {
     return;
   }
 
-  const venues = await collectVenues();
   const proposal = optimizer.propose(venues, constraints);
   if (!proposal) {
     console.log(`[agent] no actionable signal across ${venues.length} venue(s); holding.`);

@@ -9,7 +9,7 @@ import {
 } from "@/features/dashboard/hooks";
 import { activeChain } from "@/lib/wagmi";
 import { pct, countdown } from "@/lib/format";
-import { Card, Awaiting, Empty } from "../primitives";
+import { Card, Awaiting, Empty, Skeleton } from "../primitives";
 
 function useNow() {
   const [now, setNow] = useState(() => Date.now());
@@ -61,16 +61,69 @@ export function AgentPanel() {
   const rates = useExternalRates();
   const explorer = activeChain.blockExplorers?.default.url;
 
+  // The "watching" feed is real external market data (DefiLlama + Pyth) that
+  // exists independently of the DRIP contracts — it renders live even before
+  // deployment. Only the agent-specific reads gate on the controller address.
+  const watching = (
+    <div>
+      <span className="font-mono text-[10px] uppercase tracking-wide text-ink/45">
+        watching
+      </span>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+        {rates.isLoading && (
+          <>
+            <Skeleton className="h-14" />
+            <Skeleton className="h-14" />
+          </>
+        )}
+        {rates.data?.rwa.usdy && (
+          <Watch
+            label="USDY · Mantle"
+            value={pct(rates.data.rwa.usdy.apy)}
+            hint={`$${Math.round(rates.data.rwa.usdy.tvlUsd / 1e6)}M TVL`}
+          />
+        )}
+        {rates.data?.rwa.meth && (
+          <Watch
+            label="mETH staking"
+            value={pct(rates.data.rwa.meth.apy)}
+            hint={`$${Math.round(rates.data.rwa.meth.tvlUsd / 1e6)}M TVL`}
+          />
+        )}
+        {rates.data?.prices.map((p) => (
+          <Watch
+            key={p.symbol}
+            label={p.symbol}
+            value={p.price.toLocaleString("en-US", {
+              maximumFractionDigits: 2,
+            })}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
   if (!c.deployed) {
     return (
-      <Card title="Agent brain" subtitle="RL allocation engine — live decisions">
-        <Awaiting what="AgentController (NEXT_PUBLIC_AGENT_CONTROLLER)" />
+      <Card
+        title="Agent brain"
+        subtitle="Risk-adjusted allocation engine — live decisions"
+      >
+        <div className="space-y-5">
+          {watching}
+          <div className="border-t border-ink/8">
+            <Awaiting what="AgentController (NEXT_PUBLIC_AGENT_CONTROLLER)" />
+          </div>
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card title="Agent brain" subtitle="RL allocation engine — live decisions">
+    <Card
+      title="Agent brain"
+      subtitle="Risk-adjusted allocation engine — live decisions"
+    >
       <div className="space-y-5">
         <div className="flex items-baseline justify-between">
           <span className="text-xs text-ink/50">next evaluation</span>
@@ -93,28 +146,7 @@ export function AgentPanel() {
           />
         </div>
 
-        <div>
-          <span className="font-mono text-[10px] uppercase tracking-wide text-ink/45">
-            watching
-          </span>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-            {rates.data?.ethena && (
-              <Watch
-                label="Ethena funding (7d)"
-                value={pct(rates.data.ethena.stakingApy)}
-              />
-            )}
-            {rates.data?.prices.map((p) => (
-              <Watch
-                key={p.symbol}
-                label={p.symbol}
-                value={p.price.toLocaleString("en-US", {
-                  maximumFractionDigits: 2,
-                })}
-              />
-            ))}
-          </div>
-        </div>
+        {watching}
 
         {rep.deployed && (
           <div className="grid grid-cols-3 gap-3 border-t border-ink/8 pt-4 text-center">
@@ -170,11 +202,20 @@ export function AgentPanel() {
   );
 }
 
-function Watch({ label, value }: { label: string; value: string }) {
+function Watch({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   return (
     <div className="rounded-lg border border-ink/8 bg-sage/40 px-3 py-2">
       <div className="text-ink/45">{label}</div>
       <div className="mt-0.5 font-mono tabular-nums text-ink">{value}</div>
+      {hint && <div className="mt-0.5 text-[10px] text-ink/35">{hint}</div>}
     </div>
   );
 }

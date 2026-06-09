@@ -3,7 +3,7 @@ import { mantle, mantleSepoliaTestnet } from "viem/chains";
 
 // Same env contract as the web app's wagmi config: NEXT_PUBLIC_CHAIN selects
 // the chain, NEXT_PUBLIC_RPC_URL overrides the default RPC.
-const useMainnet = process.env.NEXT_PUBLIC_CHAIN === "mantle";
+export const useMainnet = process.env.NEXT_PUBLIC_CHAIN === "mantle";
 export const activeChain = useMainnet ? mantle : mantleSepoliaTestnet;
 
 const rpcUrl =

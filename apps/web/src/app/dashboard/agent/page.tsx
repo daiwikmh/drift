@@ -7,8 +7,8 @@ export default function AgentPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-ink">Agent</h1>
         <p className="mt-1 text-sm text-ink/55">
-          The reinforcement-learning allocation engine — its live constraints,
-          what it&apos;s watching, performance vs benchmark, and rebalance log.
+          The risk-adjusted allocation engine — its live constraints, what
+          it&apos;s watching, performance vs benchmark, and rebalance log.
         </p>
       </div>
 

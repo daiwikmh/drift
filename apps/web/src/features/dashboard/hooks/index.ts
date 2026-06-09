@@ -13,7 +13,7 @@ import {
   erc20Abi,
   aaveDataProviderAbi,
 } from "@drip/shared";
-import { fetchEthenaYield, fetchPythPrices } from "@/services/external";
+import { fetchPythPrices, fetchRwaYields } from "@/services/external";
 
 const REFETCH = 12_000; // ~ Mantle block cadence
 
@@ -219,12 +219,12 @@ export function useExternalRates() {
     queryKey: ["external-rates"],
     refetchInterval: 60_000,
     queryFn: async () => {
-      const [ethena, prices] = await Promise.allSettled([
-        fetchEthenaYield(),
-        fetchPythPrices(["ETH/USD", "BTC/USD"]),
+      const [rwa, prices] = await Promise.allSettled([
+        fetchRwaYields(),
+        fetchPythPrices(["ETH/USD"]),
       ]);
       return {
-        ethena: ethena.status === "fulfilled" ? ethena.value : null,
+        rwa: rwa.status === "fulfilled" ? rwa.value : { usdy: null, meth: null },
         prices: prices.status === "fulfilled" ? prices.value : [],
       };
     },

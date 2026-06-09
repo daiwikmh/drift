@@ -29,7 +29,10 @@ export const dripVaultAbi = parseAbi([
 ]);
 
 // AgentController — allocation snapshot, constraint state, rebalance log.
+// Mirrors contracts/src/interfaces/IAgentController.sol (the frozen spec).
 export const agentControllerAbi = parseAbi([
+  "function rebalance(address[] assets, uint256[] weightsBps, bytes32 reasonHash) returns (uint256 id)",
+  "function agent() view returns (address)",
   "function getAllocation() view returns (address[] assets, uint256[] weightsBps)",
   "function treasuryFloorBps() view returns (uint256)",
   "function currentTreasuryBps() view returns (uint256)",

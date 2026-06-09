@@ -1,6 +1,8 @@
 // Real off-chain data sources that exist independently of the DRIP contracts.
 // Every function returns live data or null on failure — never a fabricated value.
 
+import { defiLlamaPools } from "@drip/shared";
+
 // --- Pyth (Hermes pull oracle) -------------------------------------------
 // Free price service. Feed IDs: https://pyth.network/developers/price-feed-ids
 const HERMES = "https://hermes.pyth.network/v2/updates/price/latest";
@@ -34,18 +36,34 @@ export async function fetchPythPrices(symbols: string[]): Promise<PythPrice[]> {
   return out;
 }
 
-// --- Ethena sUSDe yield ---------------------------------------------------
-// Public yields endpoint; returns protocol + staking APY as percentages.
-export type EthenaYield = { stakingApy: number; protocolApy: number };
+// --- Mantle RWA venue yields (DefiLlama per-pool chart) --------------------
+// The v1 venues from the DRIP spec: USDY on Mantle and the mETH staking
+// yield. Pool ids live in @drip/shared, verified against yields.llama.fi.
 
-export async function fetchEthenaYield(): Promise<EthenaYield | null> {
-  const res = await fetch(
-    "https://app.ethena.fi/api/yields/protocol-and-staking-yield"
-  );
+export type VenueYield = { apy: number; tvlUsd: number; updatedAt: number };
+
+async function fetchLlamaPool(poolId: string): Promise<VenueYield | null> {
+  const res = await fetch(`https://yields.llama.fi/chart/${poolId}`);
   if (!res.ok) return null;
-  const data = await res.json();
-  const staking = Number(data.stakingYield?.value ?? data.stakingYield);
-  const protocol = Number(data.protocolYield?.value ?? data.protocolYield);
-  if (!Number.isFinite(staking)) return null;
-  return { stakingApy: staking / 100, protocolApy: protocol / 100 };
+  const json = await res.json();
+  const last = json.data?.[json.data.length - 1];
+  if (!last || !Number.isFinite(Number(last.apy))) return null;
+  return {
+    apy: Number(last.apy) / 100,
+    tvlUsd: Number(last.tvlUsd ?? 0),
+    updatedAt: Date.parse(last.timestamp),
+  };
+}
+
+export type RwaYields = { usdy: VenueYield | null; meth: VenueYield | null };
+
+export async function fetchRwaYields(): Promise<RwaYields> {
+  const [usdy, meth] = await Promise.allSettled([
+    fetchLlamaPool(defiLlamaPools.usdyMantle),
+    fetchLlamaPool(defiLlamaPools.methStaking),
+  ]);
+  return {
+    usdy: usdy.status === "fulfilled" ? usdy.value : null,
+    meth: meth.status === "fulfilled" ? meth.value : null,
+  };
 }
