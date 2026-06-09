@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { addresses, subgraphUrl } from "@/lib/contracts";
+import { addresses, subgraphUrl } from "@drip/shared";
 import { activeChain } from "@/lib/wagmi";
 import { Card, Row, Badge } from "@/features/dashboard/components/primitives";
 import { WalletButton } from "@/features/dashboard/components/WalletButton";

@@ -12,7 +12,7 @@ import {
   reputationRegistryAbi,
   erc20Abi,
   aaveDataProviderAbi,
-} from "@/lib/contracts";
+} from "@drip/shared";
 import { fetchEthenaYield, fetchPythPrices } from "@/services/external";
 
 const REFETCH = 12_000; // ~ Mantle block cadence

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { addresses, subgraphUrl } from "@/lib/contracts";
+import { addresses, subgraphUrl } from "@drip/shared";
 import { activeChain } from "@/lib/wagmi";
 
 // Mirrors the "Starter plan usage" widget in the reference dashboards, but shows

@@ -8,7 +8,7 @@ import {
   useWaitForTransactionReceipt,
 } from "wagmi";
 import { formatUnits, parseUnits, maxUint256, type Address } from "viem";
-import { addresses, dripVaultAbi, erc20Abi } from "@/lib/contracts";
+import { addresses, dripVaultAbi, erc20Abi } from "@drip/shared";
 import { Card, Awaiting } from "../primitives";
 
 type Mode = "deposit" | "withdraw";

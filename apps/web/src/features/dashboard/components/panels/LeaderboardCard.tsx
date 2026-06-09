@@ -2,7 +2,7 @@
 
 import { useAccount } from "wagmi";
 import { useLeaderboard } from "@/features/dashboard/hooks";
-import { subgraphUrl } from "@/lib/contracts";
+import { subgraphUrl } from "@drip/shared";
 import { pct, shortAddr } from "@/lib/format";
 import { Card, Awaiting, Skeleton, Empty } from "../primitives";
 
