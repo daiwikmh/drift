@@ -1,9 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { headers } from "next/headers";
-import { cookieToInitialState } from "wagmi";
-import { wagmiConfig } from "@/lib/wagmi";
-import { Providers } from "./providers";
 import "@/styles/globals.css";
 
 const geistSans = Geist({
@@ -17,30 +13,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Spade — The data & AI platform for modern finance",
+  title: "DRIFT — AI quant strategies with honest backtests",
   description:
-    "Spade takes messy transaction data and turns it into structured, verified records — with AI agents that help you use it everywhere it matters.",
+    "DRIFT runs transparent quant strategies on Bybit with point-in-time backtests and bounded, on-the-record risk. No look-ahead, no black box.",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  // Hydrate wagmi from cookies so wallet state survives SSR (no flash / mismatch).
-  const initialState = cookieToInitialState(
-    wagmiConfig,
-    (await headers()).get("cookie"),
-  );
-
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">
-        <Providers initialState={initialState}>{children}</Providers>
-      </body>
+      <body className="min-h-full">{children}</body>
     </html>
   );
 }

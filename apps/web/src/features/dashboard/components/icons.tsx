@@ -26,11 +26,10 @@ export const GridIcon = (p: IconProps) => (
   </svg>
 );
 
-export const VaultIcon = (p: IconProps) => (
+export const ChartIcon = (p: IconProps) => (
   <svg {...base(p)}>
-    <circle cx="12" cy="12" r="9" />
-    <circle cx="12" cy="12" r="3.5" />
-    <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
+    <path d="M3 3v18h18" />
+    <path d="M7 14l3-4 3 3 4-6" />
   </svg>
 );
 
@@ -39,14 +38,6 @@ export const AgentIcon = (p: IconProps) => (
     <rect x="6" y="6" width="12" height="12" rx="2" />
     <path d="M9 1.5v2.5M15 1.5v2.5M9 20v2.5M15 20v2.5M1.5 9h2.5M1.5 15h2.5M20 9h2.5M20 15h2.5" />
     <rect x="10" y="10" width="4" height="4" rx="0.5" />
-  </svg>
-);
-
-export const TrophyIcon = (p: IconProps) => (
-  <svg {...base(p)}>
-    <path d="M7 4h10v4a5 5 0 0 1-10 0V4Z" />
-    <path d="M7 5H4v1a3 3 0 0 0 3 3M17 5h3v1a3 3 0 0 1-3 3" />
-    <path d="M12 13v3M9 20h6M10 20v-1.5a2 2 0 0 1 4 0V20" />
   </svg>
 );
 

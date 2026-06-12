@@ -75,35 +75,3 @@ body {
     transition: none;
   }
 }
-
-/* Marquee for logos */
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-/* Terminal blinking caret */
-@keyframes blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
-}
-.caret::after {
-  content: "▋";
-  margin-left: 2px;
-  animation: blink 1s step-end infinite;
-}
-
-/* Ruler ticks down the page edges */
-.ruler-edge {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    var(--line) 0,
-    var(--line) 1px,
-    transparent 1px,
-    transparent 22px
-  );
-}

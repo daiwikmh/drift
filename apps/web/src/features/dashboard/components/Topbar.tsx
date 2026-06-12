@@ -1,49 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { titleFor } from "./nav";
-import { WalletButton } from "./WalletButton";
-import { Badge } from "./primitives";
-import { BookIcon, HelpIcon } from "./icons";
-import { activeChain } from "@/lib/wagmi";
 
 export function Topbar() {
   const pathname = usePathname();
   const title = titleFor(pathname);
-  const explorer = activeChain.blockExplorers?.default.url;
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-ink/8 bg-cream/80 px-5 backdrop-blur">
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-mono text-xs text-ink/40">DRIP</span>
-        <span className="text-ink/30">/</span>
-        <span className="font-semibold text-ink">{title}</span>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Badge tone="lime" dot>
-          {activeChain.name}
-        </Badge>
-        <div className="hidden items-center gap-1 sm:flex">
-          {explorer && (
-            <a
-              href={explorer}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-ink/50 hover:bg-ink/5 hover:text-ink"
-              title="Block explorer"
-            >
-              <BookIcon />
-            </a>
-          )}
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-md text-ink/50 hover:bg-ink/5 hover:text-ink"
-            title="Help"
-          >
-            <HelpIcon />
-          </button>
+    <header className="sticky top-0 z-10 border-b border-white/10 bg-[#0b0c0f]/80 backdrop-blur-xl">
+      <div className="flex h-14 items-center justify-between px-6">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-white/40">DRIFT</span>
+          <span className="text-white/20">/</span>
+          <span className="font-medium text-white">{title}</span>
         </div>
-        <WalletButton />
+
+        <Link
+          href="/"
+          className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12.5px] text-white/45 transition hover:border-white/20 hover:text-white/75"
+        >
+          ← Home
+        </Link>
       </div>
     </header>
   );

@@ -1,14 +1,12 @@
 {
-  "name": "drip",
+  "name": "drift",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/web"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace @drip/web",
-    "build": "npm run build --workspace @drip/web",
-    "lint": "npm run lint --workspaces --if-present",
-    "agent": "npm run start --workspace @drip/agent"
+    "dev": "npm run dev --workspace @drift/web",
+    "build": "npm run build --workspace @drift/web",
+    "lint": "npm run lint --workspaces --if-present"
   }
 }

@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from "react";
-import { GridIcon, VaultIcon, AgentIcon, TrophyIcon, GearIcon } from "./icons";
+import { ChartIcon, AgentIcon, GearIcon } from "./icons";
 
 export type NavItem = {
   label: string;
@@ -12,19 +12,15 @@ export type NavGroup = { title?: string; items: NavItem[] };
 // Sidebar navigation — each item is a real route under /dashboard.
 export const navGroups: NavGroup[] = [
   {
-    items: [{ label: "Overview", href: "/dashboard", icon: GridIcon }],
-  },
-  {
-    title: "Protocol",
+    title: "Trade",
     items: [
-      { label: "Vault", href: "/dashboard/vault", icon: VaultIcon },
-      { label: "Agent", href: "/dashboard/agent", icon: AgentIcon },
-      { label: "Leaderboard", href: "/dashboard/leaderboard", icon: TrophyIcon },
+      { label: "Backtest", href: "/dashboard", icon: ChartIcon },
+      { label: "Live bots", href: "/dashboard/live", icon: AgentIcon },
     ],
   },
   {
     title: "Account",
-    items: [{ label: "Settings", href: "/dashboard/settings", icon: GearIcon }],
+    items: [{ label: "Connection", href: "/dashboard/connection", icon: GearIcon }],
   },
 ];
 
@@ -35,5 +31,5 @@ export function titleFor(pathname: string): string {
       if (it.href === pathname) return it.label;
     }
   }
-  return "Overview";
+  return "Backtest";
 }

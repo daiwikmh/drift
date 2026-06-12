@@ -2,19 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-
-const links = [
-  { label: "Solutions", caret: true },
-  { label: "Customers", caret: false },
-  { label: "Company", caret: true },
-  { label: "Docs", caret: false },
-];
+import { Container } from "./Container";
+import { site } from "../site";
 
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false);
-
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
+    const onScroll = () => setScrolled(window.scrollY > window.innerHeight * 0.85);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -23,40 +17,51 @@ export default function Nav() {
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
-        scrolled ? "border-b border-black/10 bg-white/85 backdrop-blur-md" : "bg-transparent"
+        scrolled ? "border-b border-white/10 bg-black/70 backdrop-blur-xl" : "border-b border-transparent"
       }`}
     >
-      <nav className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-6">
-        <a href="#" className="text-2xl font-extrabold tracking-tight text-ink">
-          SPADE<sup className="top-[-0.5em] text-sm">&apos;</sup>
-        </a>
-
-        <ul className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-9 text-[15px] font-medium text-ink md:flex">
-          {links.map((l) => (
-            <li key={l.label}>
-              <a href="#" className="flex items-center gap-1 hover:opacity-60">
-                {l.label}
-                {l.caret && <span className="text-[10px]">▾</span>}
-              </a>
-            </li>
-          ))}
-        </ul>
-
-        <div className="flex items-center gap-2">
-          <Link
-            href="/dashboard"
-            className="hidden rounded-md border border-black/10 bg-zinc-100 px-4 py-2 text-sm font-medium text-ink transition hover:bg-zinc-200 sm:inline-block"
-          >
-            Dashboard
+      <Container className="flex h-[60px] items-center justify-between">
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center text-lg font-bold tracking-tight text-white">
+            DRIFT
           </Link>
+          <div className="hidden items-center gap-6 md:flex">
+            {site.nav.map((l, i) => (
+              <Link
+                key={l.label}
+                href={l.href}
+                className={`text-[13px] transition-colors hover:text-white ${i === 0 ? "text-white" : "text-white/45"}`}
+              >
+                {l.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <a
+            href={site.x}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="DRIFT on X"
+            className="text-[13px] text-white/45 transition-colors hover:text-white"
+          >
+            X
+          </a>
+          <a
+            href={`mailto:${site.contact}`}
+            className="rounded-full border border-white/25 px-4 py-1.5 text-[13px] text-white transition-colors hover:bg-white/10"
+          >
+            Contact
+          </a>
           <Link
             href="/dashboard"
-            className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-lime transition hover:bg-ink-soft"
+            className="rounded-full bg-[#9aa8f0] px-4 py-1.5 text-[13px] font-medium text-[#14152b] transition hover:bg-[#aeb9f4]"
           >
-            Open app
+            Open cockpit
           </Link>
         </div>
-      </nav>
+      </Container>
     </header>
   );
 }

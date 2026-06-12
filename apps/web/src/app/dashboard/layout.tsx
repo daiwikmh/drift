@@ -4,11 +4,11 @@ import { Topbar } from "@/features/dashboard/components/Topbar";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden bg-cream text-ink">
+    <div className="flex h-screen overflow-hidden bg-[#0b0c0f] text-white">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <main className="dash-scroll flex-1 overflow-y-auto px-6 py-6">
+        <main className="flex-1 overflow-y-auto px-6 py-6">
           <div className="mx-auto max-w-[1100px]">{children}</div>
         </main>
       </div>
