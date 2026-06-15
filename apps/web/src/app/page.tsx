@@ -15,7 +15,7 @@ export default function Home() {
       <PlatformShowcase />
       <FeatureCarousel />
       <Security />
-      <TrustedBy />
+      {/* <TrustedBy /> */}
       <DeployAgents />
       <Footer />
     </div>

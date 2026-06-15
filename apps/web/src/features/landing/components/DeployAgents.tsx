@@ -60,7 +60,7 @@ export function DeployAgents() {
       {/* full-bleed background */}
       <div
         className="relative flex min-h-[70vh] items-center justify-center overflow-hidden bg-cover px-6 py-24"
-        style={{ backgroundImage: "url(/walrus.jpeg)", backgroundPosition: "center 22%" }}
+        style={{ backgroundImage: "url(/blog-engineering.jpg)", backgroundPosition: "center 50%" }}
       >
         <div className="pointer-events-none absolute inset-0 bg-black/55" />
         <h2 className="relative max-w-4xl text-center text-3xl font-semibold leading-[1.5] tracking-tight text-white sm:text-[40px] sm:leading-[1.45]">

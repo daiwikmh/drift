@@ -15,7 +15,7 @@ function GoogleIcon() {
   );
 }
 
-export function LoginForm({ authEnabled }: { authEnabled: boolean }) {
+export function LoginForm() {
   return (
     <div
       className="relative flex min-h-screen bg-black bg-cover bg-center text-white"
@@ -48,26 +48,6 @@ export function LoginForm({ authEnabled }: { authEnabled: boolean }) {
             <GoogleIcon />
             Sign in with Google
           </button>
-
-          {!authEnabled && (
-            <>
-              <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-wider text-white/25">
-                <span className="h-px flex-1 bg-white/10" />
-                dev
-                <span className="h-px flex-1 bg-white/10" />
-              </div>
-              <Link
-                href="/dashboard"
-                className="flex w-full items-center justify-center rounded-lg bg-[#9aa8f0] py-2.5 text-sm font-medium text-[#14152b] transition hover:bg-[#aeb9f4]"
-              >
-                Continue to cockpit →
-              </Link>
-              <p className="mt-3 text-center text-[11px] text-white/35">
-                Google sign-in isn&apos;t configured yet. Add{" "}
-                <span className="font-mono">AUTH_GOOGLE_ID</span> to enable it.
-              </p>
-            </>
-          )}
 
           <p className="mt-6 text-center text-[11px] leading-relaxed text-white/30">
             We use your Google account only to identify your session. Bybit keys
