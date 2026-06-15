@@ -16,9 +16,11 @@ function Content() {
       </span>
 
       <h1 className="max-w-4xl text-5xl font-bold leading-[1.03] tracking-tight text-white sm:text-[68px]">
-        Backtests lie.
+        Test it.  
         <br />
-        DRIFT doesn&apos;t.
+        Trust it.&apos;t.
+        <br/>
+        Trade.
       </h1>
 
       <p className="mt-7 max-w-xl text-lg leading-relaxed text-white/65 sm:text-xl">
