@@ -9,7 +9,7 @@ export const site = {
   contact: "daiwikmahesh@gmail.com",
   x: "https://x.com",
   nav: [
-    { label: "Strategies", href: "#strategies" },
-    { label: "How it works", href: "#how" },
+    { label: "DRIFT", href: "/" },
+    { label: "Blog", href: "/blog" },
   ] as NavLink[],
 } as const;

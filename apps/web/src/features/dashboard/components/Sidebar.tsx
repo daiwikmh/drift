@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { navGroups } from "./nav";
+import { ProfileMenu } from "./ProfileMenu";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -10,9 +12,9 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-white/10 bg-[#0a0b0e]">
       {/* brand → back to landing */}
-      <div className="flex h-14 items-center gap-2 border-b border-white/10 px-5">
-        <Link href="/" className="text-sm font-semibold tracking-tight text-white">
-          DRIFT
+      <div className="flex h-14 items-center gap-2.5 border-b border-white/10 px-5">
+        <Link href="/">
+          <Image src="/drift-logo.png" alt="DRIFT" width={28} height={28} className="object-contain" />
         </Link>
         <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-amber-300">
           testnet
@@ -60,11 +62,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-white/10 p-3">
-        <p className="px-1 font-mono text-[10px] leading-relaxed text-white/30">
-          Point-in-time backtests · no look-ahead. Live orders on Bybit testnet.
-        </p>
-      </div>
+      <ProfileMenu />
     </aside>
   );
 }

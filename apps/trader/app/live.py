@@ -15,8 +15,10 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from .bybit_client import BybitClient
+from .chain import guard as chain_guard
 from .models import BotConfig, BotStatus
 from .strategies.registry import get_strategy
+from .telegram import tg
 
 POLL_SECONDS = 15  # how often each bot re-evaluates its signal
 
@@ -54,6 +56,8 @@ class Bot:
     last_price: Optional[float] = None
     error: Optional[str] = None
     fills: list[dict] = field(default_factory=list)
+    last_chain_tx: Optional[str] = None
+    chain_vetoed: bool = False
     task: Optional[asyncio.Task] = None
 
     def status(self) -> BotStatus:
@@ -69,6 +73,8 @@ class Bot:
             last_price=self.last_price,
             fills=self.fills[-20:],
             error=self.error,
+            last_chain_tx=self.last_chain_tx,
+            chain_vetoed=self.chain_vetoed,
         )
 
 
@@ -103,6 +109,8 @@ class BotManager:
                 await self._flatten(bot, self.connection.require())
         except Exception:
             pass
+        # Remove from the registry so it disappears from the cockpit.
+        self.bots.pop(bot_id, None)
         return True
 
     # ------------------------------------------------------------------ loop --
@@ -136,6 +144,12 @@ class BotManager:
         bot.last_price = price
         bot.last_signal = {1: "long", -1: "short", 0: "flat"}[target]
 
+        # On-chain macro guard: a risk-off regime or an active halt can veto a
+        # signal. A vetoed target is clamped to flat (de-risk), enforced on-chain.
+        bot.chain_vetoed = not await asyncio.to_thread(chain_guard.allowed, target)
+        if bot.chain_vetoed:
+            target = 0
+
         if target != bot.position:
             await self._rebalance(bot, client, target, price)
 
@@ -143,10 +157,22 @@ class BotManager:
         bot.peak_equity = max(bot.peak_equity, bot.equity)
         bot.drawdown = bot.equity / bot.peak_equity - 1.0 if bot.peak_equity else 0.0
 
+        # Record this decision on-chain (best-effort) — the permanent benchmark trail.
+        tx = await asyncio.to_thread(
+            chain_guard.record, bot.config.symbol, target, price, bot.drawdown
+        )
+        if tx:
+            bot.last_chain_tx = tx
+
         if bot.drawdown <= -bot.config.max_drawdown:
             bot.error = f"drawdown stop hit ({bot.drawdown:.2%})"
             await self._flatten(bot, client)
             bot.running = False
+            await asyncio.to_thread(
+                tg.send,
+                f"🛑 *Drawdown stop* `{bot.id}` {bot.config.symbol}\n"
+                f"dd {bot.drawdown:.2%} · flattened & halted.",
+            )
 
     async def _rebalance(self, bot: Bot, client: BybitClient, target: int, price: float) -> None:
         delta = target - bot.position  # in units of config.qty
@@ -156,6 +182,10 @@ class BotManager:
         bot.position = target
         bot.fills.append(
             {"ts": int(time.time()), "side": side, "qty": qty, "price": price, "target": target}
+        )
+        await asyncio.to_thread(
+            tg.send,
+            f"🟢 *Fill* `{bot.id}` {bot.config.symbol}\n{side} {qty} @ {price:,.2f} → {bot.last_signal}",
         )
 
     async def _flatten(self, bot: Bot, client: BybitClient) -> None:

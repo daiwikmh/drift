@@ -1,8 +1,17 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
+import { auth, AUTH_ENABLED } from "@/lib/auth";
 import { Sidebar } from "@/features/dashboard/components/Sidebar";
 import { Topbar } from "@/features/dashboard/components/Topbar";
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  // Gate the cockpit behind Google sign-in — but only once OAuth is configured,
+  // so the app stays usable locally before AUTH_GOOGLE_ID is set.
+  if (AUTH_ENABLED) {
+    const session = await auth();
+    if (!session) redirect("/login");
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#0b0c0f] text-white">
       <Sidebar />

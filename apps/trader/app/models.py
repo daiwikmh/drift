@@ -41,6 +41,21 @@ class Candle(BaseModel):
     volume: float
 
 
+class Market(BaseModel):
+    symbol: str
+    last: float
+    change24h: float  # fraction, e.g. 0.0123 = +1.23%
+    high24h: float
+    low24h: float
+    volume24h: float  # quote turnover
+
+
+class KlinesResponse(BaseModel):
+    symbol: str
+    timeframe: str
+    candles: list[Candle]
+
+
 class EquityPoint(BaseModel):
     time: int
     equity: float
@@ -59,6 +74,38 @@ class Metrics(BaseModel):
     win_rate: float
     max_drawdown: float
     num_trades: int
+
+
+class OptimizeRequest(BaseModel):
+    symbol: str = "BTCUSDT"
+    timeframe: str = "1h"
+    bars: int = Field(default=720, ge=200, le=1000)
+    train_frac: float = Field(default=0.7, ge=0.4, le=0.85)
+
+
+class SliceMetrics(BaseModel):
+    total_return: float
+    sharpe: float
+    max_drawdown: float
+    num_trades: int
+
+
+class OptimizeResult(BaseModel):
+    strategy: str
+    name: str
+    params: dict[str, float]
+    in_sample: SliceMetrics
+    out_of_sample: SliceMetrics
+    verdict: str  # "robust" | "overfit" | "weak"
+    equity: list[EquityPoint]  # full-series, downsampled
+    split_index: int  # index into equity where test begins
+
+
+class OptimizeResponse(BaseModel):
+    symbol: str
+    timeframe: str
+    train_frac: float
+    results: list[OptimizeResult]
 
 
 class BacktestResponse(BaseModel):
@@ -86,6 +133,18 @@ class ConnectionStatus(BaseModel):
     error: Optional[str] = None
 
 
+class TelegramConnectRequest(BaseModel):
+    token: str
+    chat_id: Optional[str] = None
+
+
+class TelegramStatus(BaseModel):
+    enabled: bool
+    configured: bool
+    chat_id: Optional[str] = None
+    username: Optional[str] = None
+
+
 class BotConfig(BaseModel):
     strategy: str
     symbol: str = "BTCUSDT"
@@ -107,3 +166,5 @@ class BotStatus(BaseModel):
     last_price: Optional[float] = None
     fills: list[dict[str, Any]] = Field(default_factory=list)
     error: Optional[str] = None
+    last_chain_tx: Optional[str] = None
+    chain_vetoed: bool = False

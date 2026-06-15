@@ -15,7 +15,7 @@ export default function Footer() {
             <h4 className="text-sm font-medium text-white">Product</h4>
             <ul className="mt-4 space-y-2.5">
               <li>
-                <Link href="/dashboard" className="text-sm text-white/40 transition-colors hover:text-white/80">
+                <Link href="/login" className="text-sm text-white/40 transition-colors hover:text-white/80">
                   Cockpit
                 </Link>
               </li>

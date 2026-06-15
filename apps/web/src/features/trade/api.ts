@@ -3,8 +3,14 @@ import type {
   BacktestResponse,
   BotConfig,
   BotStatus,
+  ChainInfo,
   ConnectionStatus,
+  KlinesResponse,
+  Market,
+  OptimizeResponse,
+  RegimeInfo,
   StrategyInfo,
+  TelegramStatus,
 } from "./types";
 
 // The Python engine (apps/trader). Override with NEXT_PUBLIC_TRADER_URL.
@@ -27,6 +33,62 @@ async function json<T>(res: Response): Promise<T> {
 
 export async function fetchStrategies(signal?: AbortSignal): Promise<StrategyInfo[]> {
   return json(await fetch(`${TRADER_URL}/strategies`, { signal }));
+}
+
+export async function getChain(signal?: AbortSignal): Promise<ChainInfo> {
+  return json(await fetch(`${TRADER_URL}/chain`, { signal }));
+}
+
+export async function getRegime(signal?: AbortSignal): Promise<RegimeInfo> {
+  return json(await fetch(`${TRADER_URL}/regime`, { signal }));
+}
+
+export async function getTelegram(signal?: AbortSignal): Promise<TelegramStatus> {
+  return json(await fetch(`${TRADER_URL}/telegram`, { signal }));
+}
+
+export async function connectTelegram(
+  body: { token: string; chat_id?: string },
+): Promise<TelegramStatus> {
+  return json(
+    await fetch(`${TRADER_URL}/telegram`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+export async function testTelegram(): Promise<{ sent: boolean }> {
+  return json(await fetch(`${TRADER_URL}/telegram/test`, { method: "POST" }));
+}
+
+export async function fetchMarkets(signal?: AbortSignal): Promise<Market[]> {
+  return json(await fetch(`${TRADER_URL}/markets`, { signal }));
+}
+
+export async function fetchKlines(
+  symbol: string,
+  timeframe: string,
+  bars = 200,
+  signal?: AbortSignal,
+): Promise<KlinesResponse> {
+  const q = new URLSearchParams({ symbol, timeframe, bars: String(bars) });
+  return json(await fetch(`${TRADER_URL}/klines?${q}`, { signal }));
+}
+
+export async function runOptimize(
+  body: { symbol: string; timeframe: string; bars: number; train_frac: number },
+  signal?: AbortSignal,
+): Promise<OptimizeResponse> {
+  return json(
+    await fetch(`${TRADER_URL}/optimize`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    }),
+  );
 }
 
 export async function runBacktest(

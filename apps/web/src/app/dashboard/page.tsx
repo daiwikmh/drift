@@ -1,16 +1,16 @@
-import { Cockpit } from "@/features/trade/components/Cockpit";
+import { MarketsView } from "@/features/trade/components/MarketsView";
 
-export default function BacktestPage() {
+export default function MarketsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-white">Backtest</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-white">Markets</h1>
         <p className="mt-1 text-sm text-white/55">
-          Browse strategies, configure parameters, and backtest against real Bybit
-          market history before going live.
+          Live Bybit perpetuals. Pick a market, read the chart, and deploy a bot —
+          all in one place.
         </p>
       </div>
-      <Cockpit />
+      <MarketsView />
     </div>
   );
 }

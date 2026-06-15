@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Container } from "./Container";
 import { site } from "../site";
 
@@ -22,8 +23,8 @@ export default function Nav() {
     >
       <Container className="flex h-[60px] items-center justify-between">
         <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center text-lg font-bold tracking-tight text-white">
-            DRIFT
+          <Link href="/" className="flex items-center">
+            <Image src="/drift-logo.png" alt="DRIFT" width={32} height={32} className="object-contain" />
           </Link>
           <div className="hidden items-center gap-6 md:flex">
             {site.nav.map((l, i) => (
@@ -55,7 +56,7 @@ export default function Nav() {
             Contact
           </a>
           <Link
-            href="/dashboard"
+            href="/login"
             className="rounded-full bg-[#9aa8f0] px-4 py-1.5 text-[13px] font-medium text-[#14152b] transition hover:bg-[#aeb9f4]"
           >
             Open cockpit

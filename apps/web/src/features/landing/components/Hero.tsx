@@ -27,7 +27,7 @@ function Content() {
       </p>
 
       <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-        <Link href="/dashboard" className="rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black transition hover:bg-white/90">
+        <Link href="/login" className="rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black transition hover:bg-white/90">
           Open cockpit
         </Link>
         <a href="#strategies" className="rounded-full border border-white/15 bg-white/[0.06] px-5 py-2.5 text-sm text-white/85 backdrop-blur-sm transition hover:border-white/30">
@@ -57,7 +57,7 @@ export default function Hero() {
   if (reduced) {
     return (
       <section className="relative flex h-screen items-center overflow-hidden">
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url(/hero-room.jpeg)" }} />
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url(/hero-stars.jpg)" }} />
         <div className="absolute inset-0 bg-black/50" />
         <Container className="relative">
           <Content />
@@ -71,7 +71,7 @@ export default function Hero() {
       <section className="sticky top-0 flex h-screen items-center overflow-hidden">
         <motion.div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url(/hero-room.jpeg)", scale: bgScale }}
+          style={{ backgroundImage: "url(/hero-stars.jpg)", scale: bgScale }}
         />
         <motion.div className="absolute inset-0 bg-black" style={{ opacity: overlayOpacity }} />
 

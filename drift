@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# DRIFT terminal — one command to set up the environment and launch the TUI.
+set -e
+
+DIR="$(cd "$(dirname "$0")/apps/trader" && pwd)"
+cd "$DIR"
+
+if [ ! -d .venv ]; then
+  echo "› Setting up DRIFT environment…"
+  python3 -m venv .venv
+  .venv/bin/pip install -q --upgrade pip
+fi
+
+# Install/refresh deps only when something is missing.
+if ! .venv/bin/python -c "import rich, pybit, pandas, dotenv, web3, openai" >/dev/null 2>&1; then
+  echo "› Installing dependencies…"
+  .venv/bin/pip install -q -r requirements.txt
+fi
+
+exec .venv/bin/python -m app.cli "$@"

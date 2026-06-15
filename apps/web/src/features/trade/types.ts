@@ -27,6 +27,21 @@ export type Candle = {
   volume: number;
 };
 
+export type Market = {
+  symbol: string;
+  last: number;
+  change24h: number; // fraction
+  high24h: number;
+  low24h: number;
+  volume24h: number;
+};
+
+export type KlinesResponse = {
+  symbol: string;
+  timeframe: string;
+  candles: Candle[];
+};
+
 export type EquityPoint = {
   time: number;
   equity: number;
@@ -57,6 +72,31 @@ export type BacktestResponse = {
   metrics: Metrics;
 };
 
+export type SliceMetrics = {
+  total_return: number;
+  sharpe: number;
+  max_drawdown: number;
+  num_trades: number;
+};
+
+export type OptimizeResult = {
+  strategy: string;
+  name: string;
+  params: Record<string, number>;
+  in_sample: SliceMetrics;
+  out_of_sample: SliceMetrics;
+  verdict: "robust" | "overfit" | "weak";
+  equity: EquityPoint[];
+  split_index: number;
+};
+
+export type OptimizeResponse = {
+  symbol: string;
+  timeframe: string;
+  train_frac: number;
+  results: OptimizeResult[];
+};
+
 export type BacktestRequest = {
   strategy: string;
   symbol: string;
@@ -72,6 +112,13 @@ export type ConnectionStatus = {
   testnet: boolean;
   balance: number | null;
   error: string | null;
+};
+
+export type TelegramStatus = {
+  enabled: boolean;
+  configured: boolean;
+  chat_id: string | null;
+  username: string | null;
 };
 
 export type BotConfig = {
@@ -104,4 +151,25 @@ export type BotStatus = {
   last_price: number | null;
   fills: Fill[];
   error: string | null;
+  last_chain_tx: string | null;
+  chain_vetoed: boolean;
+};
+
+export type ChainInfo = {
+  enabled: boolean;
+  address: string | null;
+  chain_id: number;
+  rpc: string;
+  explorer: string | null;
+  explorer_base: string;
+};
+
+export type RegimeInfo = {
+  regime: number;
+  label: string; // "risk-off" | "neutral" | "risk-on"
+  vol_z: number;
+  trend: number;
+  price: number;
+  on_chain: number | null;
+  synced: boolean;
 };

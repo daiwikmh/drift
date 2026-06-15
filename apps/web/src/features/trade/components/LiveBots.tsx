@@ -3,20 +3,34 @@
 import { useEffect, useRef, useState } from "react";
 import {
   botStreamUrl,
+  fetchKlines,
   fetchStrategies,
+  getChain,
   getConnection,
+  getRegime,
   listBots,
   startBot,
   stopBot,
 } from "../api";
-import type { BotConfig, BotStatus, ConnectionStatus, StrategyInfo } from "../types";
+import type {
+  BotConfig,
+  BotStatus,
+  Candle,
+  ChainInfo,
+  ConnectionStatus,
+  RegimeInfo,
+  StrategyInfo,
+} from "../types";
 import { pct } from "@/lib/format";
 import { Card, Button, Badge, StatTile, Row } from "@/features/dashboard/components/primitives";
+import { CandleChart, type ChartMarker } from "./CandleChart";
 
 export function LiveBots() {
   const [conn, setConn] = useState<ConnectionStatus | null>(null);
   const [strategies, setStrategies] = useState<StrategyInfo[]>([]);
   const [bots, setBots] = useState<BotStatus[]>([]);
+  const [chain, setChain] = useState<ChainInfo | null>(null);
+  const [regime, setRegime] = useState<RegimeInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,10 +39,14 @@ export function LiveBots() {
       getConnection(ac.signal).catch(() => null),
       fetchStrategies(ac.signal).catch(() => []),
       listBots(ac.signal).catch(() => []),
-    ]).then(([c, s, b]) => {
+      getChain(ac.signal).catch(() => null),
+      getRegime(ac.signal).catch(() => null),
+    ]).then(([c, s, b, ch, rg]) => {
       setConn(c);
       setStrategies(s ?? []);
       setBots(b ?? []);
+      setChain(ch);
+      setRegime(rg);
     });
     return () => ac.abort();
   }, []);
@@ -45,9 +63,7 @@ export function LiveBots() {
 
   const kill = async (id: string) => {
     await stopBot(id).catch(() => {});
-    setBots((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, running: false } : b)),
-    );
+    setBots((prev) => prev.filter((b) => b.id !== id));
   };
 
   if (conn && !conn.connected) {
@@ -68,6 +84,7 @@ export function LiveBots() {
 
   return (
     <div className="space-y-4">
+      {chain?.enabled && <GuardBanner chain={chain} regime={regime} />}
       <LaunchForm strategies={strategies} onLaunch={launch} />
       {error && (
         <Card title="Launch failed">
@@ -81,11 +98,49 @@ export function LiveBots() {
           </p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="space-y-4">
           {bots.map((b) => (
-            <BotCard key={b.id} initial={b} onKill={() => kill(b.id)} />
+            <BotCard key={b.id} initial={b} chain={chain} onKill={() => kill(b.id)} />
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function GuardBanner({ chain, regime }: { chain: ChainInfo; regime: RegimeInfo | null }) {
+  const short = chain.address
+    ? `${chain.address.slice(0, 6)}…${chain.address.slice(-4)}`
+    : "—";
+  const regimeTone =
+    regime?.label === "risk-on" ? "green" : regime?.label === "risk-off" ? "rose" : "zinc";
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-[#9aa8f0]/25 bg-[#9aa8f0]/[0.06] px-3.5 py-2.5 text-[12px]">
+      <Badge tone="green" dot>
+        on-chain
+      </Badge>
+      <span className="text-white/70">
+        MacroGuard enforcing risk on{" "}
+        <span className="text-white/90">Mantle</span> · every decision recorded on-chain
+      </span>
+      {regime && (
+        <span className="flex items-center gap-1.5">
+          <span className="text-white/35">·</span>
+          <span className="text-white/45">regime</span>
+          <Badge tone={regimeTone as "green" | "rose" | "zinc"} dot>
+            {regime.label}
+          </Badge>
+        </span>
+      )}
+      {chain.explorer && (
+        <a
+          href={chain.explorer}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto font-mono text-[#9aa8f0] underline-offset-2 hover:underline"
+        >
+          {short} ↗
+        </a>
       )}
     </div>
   );
@@ -139,79 +194,154 @@ function LaunchForm({
   );
 }
 
-function BotCard({ initial, onKill }: { initial: BotStatus; onKill: () => void }) {
+function BotCard({
+  initial,
+  chain,
+  onKill,
+}: {
+  initial: BotStatus;
+  chain: ChainInfo | null;
+  onKill: () => void;
+}) {
   const [bot, setBot] = useState<BotStatus>(initial);
+  const [candles, setCandles] = useState<Candle[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
+  // Keep the stream open regardless of running state so a kill/stop is reflected
+  // live (the engine streams status every second, including after a stop).
   useEffect(() => {
-    if (!initial.running) return;
     const ws = new WebSocket(botStreamUrl(initial.id));
     wsRef.current = ws;
     ws.onmessage = (e) => setBot(JSON.parse(e.data));
     return () => ws.close();
-  }, [initial.id, initial.running]);
+  }, [initial.id]);
+
+  // keep the bot's chart fresh
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      fetchKlines(initial.config.symbol, initial.config.timeframe, 120)
+        .then((r) => alive && setCandles(r.candles))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 30_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [initial.config.symbol, initial.config.timeframe]);
 
   const sigTone =
     bot.last_signal === "long" ? "green" : bot.last_signal === "short" ? "rose" : "zinc";
 
+  const markers: ChartMarker[] = bot.fills.map((f) => ({
+    time: f.ts,
+    price: f.price,
+    side: f.flatten || f.target === 0 ? "exit" : f.target > 0 ? "long" : "short",
+  }));
+
+  const pnl = bot.peak_equity > 0 ? bot.equity / bot.peak_equity - 1 : 0;
+
   return (
     <Card
-      title={`${bot.config.symbol} · ${bot.config.strategy}`}
-      subtitle={`${bot.config.timeframe} · qty ${bot.config.qty}`}
+      title={
+        <span className="flex items-center gap-2">
+          <span className="font-mono">{bot.config.symbol}</span>
+          <span className="text-white/35">·</span>
+          <span className="text-white/60">{bot.config.strategy}</span>
+          {bot.running ? (
+            <Badge tone="green" dot>live</Badge>
+          ) : (
+            <Badge tone="zinc">stopped</Badge>
+          )}
+        </span>
+      }
+      subtitle={`${bot.config.timeframe} · qty ${bot.config.qty} · max DD ${pct(bot.config.max_drawdown, 0)}`}
       action={
-        bot.running ? (
-          <Button variant="outline" onClick={onKill} className="!py-1 !text-[12px]">
-            Kill
-          </Button>
-        ) : (
-          <Badge tone="zinc">Stopped</Badge>
-        )
+        <Button variant="outline" onClick={onKill} className="!py-1 !text-[12px]">
+          {bot.running ? "Kill" : "Dismiss"}
+        </Button>
       }
     >
-      <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-          <StatTile label="Equity" value={`${bot.equity.toFixed(2)}`} />
-          <StatTile label="Drawdown" value={pct(bot.drawdown)} />
-          <StatTile
-            label="Position"
-            value={bot.position > 0 ? "Long" : bot.position < 0 ? "Short" : "Flat"}
-          />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+        {/* chart */}
+        <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+          <CandleChart candles={candles} markers={markers} height={240} />
         </div>
-        <div className="flex items-center gap-2">
-          <Badge tone={sigTone as "green" | "rose" | "zinc"} dot>
-            {bot.last_signal ?? "—"}
-          </Badge>
-          {bot.last_price != null && (
-            <span className="font-mono text-[12px] text-white/55">
-              @ {bot.last_price.toLocaleString()}
-            </span>
-          )}
-        </div>
-        {bot.error && (
-          <p className="font-mono text-[11px] text-rose-300">{bot.error}</p>
-        )}
-        <div>
-          <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-white/40">
-            Fills
+
+        {/* stats + fills */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <StatTile label="Equity" value={bot.equity.toFixed(2)} />
+            <StatTile label="P&L" value={pct(pnl)} accent={pnl >= 0} />
+            <StatTile label="Drawdown" value={pct(bot.drawdown)} />
+            <StatTile
+              label="Position"
+              value={bot.position > 0 ? "Long" : bot.position < 0 ? "Short" : "Flat"}
+            />
           </div>
-          {bot.fills.length ? (
-            <div className="max-h-32 space-y-0.5 overflow-y-auto">
-              {[...bot.fills].reverse().map((f, i) => (
-                <Row
-                  key={i}
-                  label={
-                    <span className={f.side === "Buy" ? "text-emerald-400" : "text-rose-300"}>
-                      {f.side} {f.qty}
-                      {f.flatten ? " (flat)" : ""}
-                    </span>
-                  }
-                  value={f.price?.toLocaleString() ?? "—"}
-                />
-              ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={sigTone as "green" | "rose" | "zinc"} dot>
+              {bot.last_signal ?? "—"}
+            </Badge>
+            {bot.last_price != null && (
+              <span className="font-mono text-[12px] text-white/55">
+                @ {bot.last_price.toLocaleString()}
+              </span>
+            )}
+            {bot.chain_vetoed && (
+              <Badge tone="amber" dot>
+                macro veto
+              </Badge>
+            )}
+          </div>
+          {chain?.enabled && (
+            <div className="flex items-center gap-1.5 text-[11px] text-white/45">
+              <span className="text-[#9aa8f0]">⛓</span>
+              {bot.last_chain_tx ? (
+                <a
+                  href={`${chain.explorer_base}/tx/${bot.last_chain_tx}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-[#9aa8f0] underline-offset-2 hover:underline"
+                >
+                  decision logged {bot.last_chain_tx.slice(0, 10)}… ↗
+                </a>
+              ) : (
+                <span>awaiting first on-chain decision…</span>
+              )}
             </div>
-          ) : (
-            <p className="text-xs text-white/40">No fills yet — waiting for a signal.</p>
           )}
+          {bot.error &&
+            (/10005|permission denied/i.test(bot.error) ? (
+              <p className="rounded-md border border-amber-400/25 bg-amber-400/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+                Your Bybit keys are <b>read-only</b>. Live orders need a key with{" "}
+                <b>trade</b> permission (and a funded testnet balance).
+              </p>
+            ) : (
+              <p className="font-mono text-[11px] text-rose-300">{bot.error}</p>
+            ))}
+          <div>
+            <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-white/40">Fills</div>
+            {bot.fills.length ? (
+              <div className="max-h-28 space-y-0.5 overflow-y-auto">
+                {[...bot.fills].reverse().map((f, i) => (
+                  <Row
+                    key={i}
+                    label={
+                      <span className={f.side === "Buy" ? "text-emerald-400" : "text-rose-300"}>
+                        {f.side} {f.qty}
+                        {f.flatten ? " (flat)" : ""}
+                      </span>
+                    }
+                    value={f.price?.toLocaleString() ?? "—"}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-white/40">No fills yet — waiting for a signal.</p>
+            )}
+          </div>
         </div>
       </div>
     </Card>

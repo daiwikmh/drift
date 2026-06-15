@@ -1,40 +1,83 @@
-import type { ReactNode } from "react";
 import { Reveal } from "./primitives";
 import { Container } from "./Container";
 
-const code = `const drift = await Drift.connect("BTCUSDT")
+function CliTerminal() {
+  const A = "#9aa8f0";
+  const UP = "#34d399";
+  const DIM = "rgba(255,255,255,0.35)";
+  const FAINT = "rgba(255,255,255,0.18)";
+  const AMBER = "#fbbf24";
 
-// Backtest on real Bybit history — strictly point-in-time
-const result = await drift.backtest("macd", { fast: 10, slow: 21 })
-return result.metrics.sharpe, result.metrics.maxDrawdown
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#08090c] font-mono text-[12px] leading-[1.75]">
+      {/* title bar */}
+      <div className="flex items-center gap-1.5 border-b border-white/[0.07] px-4 py-2.5">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#f87171]/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#fbbf24]/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#34d399]/70" />
+        <span className="ml-3 text-[11px] text-white/25">drift — zsh</span>
+      </div>
 
-// Tune every parameter — no black box
-const tuned = await drift.backtest("bollinger", { window: 20, k: 2 })
+      <div className="space-y-0 p-5">
+        {/* launch */}
+        <p style={{ color: FAINT }}>$ <span style={{ color: A }}>./drift</span></p>
 
-// Deploy a bot to testnet with a hard drawdown stop
-const bot = await drift.deploy("rsi", { qty: 0.001, maxDrawdown: 0.2 })
+        {/* boot line */}
+        <p style={{ color: DIM }}>  ◇ engine&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; │ strategies · optimizer · backtester  <span style={{ color: UP }}>✓</span></p>
+        <p style={{ color: DIM }}>  ◇ market data&nbsp; │ bybit public feed  <span style={{ color: UP }}>✓</span></p>
+        <p style={{ color: DIM }}>  ◇ macroguard&nbsp;&nbsp; │ mantle sepolia · 0x4011…7ab3  <span style={{ color: UP }}>✓</span></p>
+        <p className="mb-2" style={{ color: UP }}>  ✓ ready — just talk to me (how&apos;s btc?) or type a command</p>
 
-// Watch fills and equity stream in live
-const tick = await bot.next()`;
+        {/* research */}
+        <p><span style={{ color: A }}>&gt; </span><span style={{ color: "rgba(255,255,255,0.8)" }}>research btc 1h</span></p>
+        <p style={{ color: DIM }}>  sweeping parameter space · train/test split…</p>
+        <p>
+          <span style={{ color: A }}>  rsi&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          <span style={{ color: DIM }}>&nbsp;IS 4.12&nbsp;</span>
+          <span style={{ color: UP }}>OOS 6.59</span>
+          <span style={{ color: UP }}>&nbsp;robust ✓</span>
+        </p>
+        <p>
+          <span style={{ color: A }}>  macd&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          <span style={{ color: DIM }}>&nbsp;IS 3.80&nbsp;</span>
+          <span style={{ color: DIM }}>OOS 0.41</span>
+          <span style={{ color: AMBER }}>&nbsp;overfit</span>
+        </p>
+        <p className="mb-2" style={{ color: DIM }}>  › deploy the winner: <span style={{ color: A }}>bot rsi btc 1h</span></p>
 
-const TOKEN = /(\/\/[^\n]*)|("(?:[^"\\]|\\.)*")|\b(const|new|async|await|switch|case|return|let)\b/g;
+        {/* analyze */}
+        <p><span style={{ color: A }}>&gt; </span><span style={{ color: "rgba(255,255,255,0.8)" }}>analyze btc</span></p>
+        <p style={{ color: DIM }}>  analysing BTCUSDT · regime <span style={{ color: UP }}>risk-on</span></p>
+        <p className="mb-2" style={{ color: "rgba(255,255,255,0.55)" }}>  drift › RSI 42 — not yet oversold. Momentum positive, vol z-score −0.8. Regime favours long exposure.</p>
 
-function highlight(src: string) {
-  const out: ReactNode[] = [];
-  let last = 0;
-  let k = 0;
-  let m: RegExpExecArray | null;
-  TOKEN.lastIndex = 0;
-  while ((m = TOKEN.exec(src))) {
-    if (m.index > last) out.push(src.slice(last, m.index));
-    const [full, comment, str, kw] = m;
-    if (comment) out.push(<span key={k++} className="text-white/35">{comment}</span>);
-    else if (str) out.push(<span key={k++} className="text-[#c3e88d]">{str}</span>);
-    else if (kw) out.push(<span key={k++} className="text-[#c792ea]">{kw}</span>);
-    last = m.index + full.length;
-  }
-  if (last < src.length) out.push(src.slice(last));
-  return out;
+        {/* bot */}
+        <p><span style={{ color: A }}>&gt; </span><span style={{ color: "rgba(255,255,255,0.8)" }}>bot rsi btc 1h</span></p>
+        <p style={{ color: DIM }}>  bot live · BTCUSDT 1h · qty 0.001 · Ctrl-C to stop &amp; flatten</p>
+        <p style={{ color: A }}>  ⛓ macroguard 0x4011cbAc… · logged 0x9bdf82a0…</p>
+        <p>
+          <span style={{ color: DIM }}>  equity </span><span style={{ color: "rgba(255,255,255,0.8)" }}>1 024.38</span>
+          <span style={{ color: DIM }}>&nbsp;· position </span><span style={{ color: UP }}>long</span>
+          <span style={{ color: DIM }}>&nbsp;· signal </span><span style={{ color: UP }}>long</span>
+        </p>
+
+        {/* prompt */}
+        <p className="mt-1"><span style={{ color: A }}>&gt; </span><span className="inline-block h-[13px] w-[7px] animate-pulse bg-[#9aa8f0]/70 align-middle" /></p>
+      </div>
+
+      {/* status bar */}
+      <div className="flex items-center gap-4 border-t border-white/[0.07] px-5 py-2 text-[11px]">
+        <span style={{ color: A }}>agent drift</span>
+        <span style={{ color: FAINT }}>·</span>
+        <span style={{ color: AMBER }}>testnet</span>
+        <span style={{ color: FAINT }}>·</span>
+        <span style={{ color: UP }}>BTC ▲97,421</span>
+        <span style={{ color: FAINT }}>·</span>
+        <span style={{ color: UP }}>ETH ▲3,218</span>
+        <span style={{ color: FAINT }}>·</span>
+        <span style={{ color: DIM }}>bots 1</span>
+      </div>
+    </div>
+  );
 }
 
 function Ic({ d }: { d: string }) {
@@ -76,19 +119,9 @@ export function PlatformShowcase() {
       <Container className="grid items-start gap-10 lg:grid-cols-2">
         <Reveal>
           <h2 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">Configure. Backtest. Deploy.</h2>
-          <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-[#0c0d10]">
-            <pre className="overflow-x-auto p-5 font-mono text-[12.5px] leading-[1.7] text-white/80">
-              <code>{highlight(code)}</code>
-            </pre>
-            <div className="flex items-center justify-between border-t border-white/5 px-4 py-3">
-              <button className="rounded-md border border-white/10 p-1.5 text-white/40 transition hover:text-white/70" aria-label="Copy code">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-                  <rect x="9" y="9" width="11" height="11" rx="2" />
-                  <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                </svg>
-              </button>
-              <span className="rounded-lg bg-white/[0.06] px-3.5 py-1.5 text-sm text-white/80">Run ↵</span>
-            </div>
+          <p className="mt-3 text-[14px] text-white/40">One command. Full-screen terminal agent — markets, optimizer, AI analyst, live bots.</p>
+          <div className="mt-6">
+            <CliTerminal />
           </div>
         </Reveal>
 

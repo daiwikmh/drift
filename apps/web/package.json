@@ -9,9 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "boring-avatars": "^2.0.4",
     "framer-motion": "^12.40.0",
     "gsap": "^3.15.0",
     "next": "16.2.7",
+    "next-auth": "^5.0.0-beta.31",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },

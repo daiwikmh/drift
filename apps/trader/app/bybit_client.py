@@ -70,6 +70,11 @@ class BybitClient:
         resp = self.session.get_tickers(category="linear", symbol=symbol)
         return float(resp["result"]["list"][0]["lastPrice"])
 
+    def tickers(self) -> dict[str, dict]:
+        """All linear-perp tickers, keyed by symbol."""
+        resp = self.session.get_tickers(category="linear")
+        return {r["symbol"]: r for r in resp["result"]["list"]}
+
     # ---- account / trading (Phase 3) ----
 
     def wallet_balance(self) -> float:
