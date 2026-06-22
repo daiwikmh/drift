@@ -10,8 +10,9 @@
     "dev": "tsx src/cli.ts",
     "drift": "tsx src/cli.ts",
     "relay": "tsx src/cli.ts relay",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/chain/abi','dist/chain/abi',{recursive:true})\"",
     "start": "node dist/cli.js",
+    "start:relay": "node dist/cli.js relay",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

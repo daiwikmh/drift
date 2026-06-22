@@ -16,6 +16,8 @@ const ZERO_HASH = ("0x" + "00".repeat(32)) as `0x${string}`;
 const identityAbi = [
   { type: "function", name: "ownerOf", stateMutability: "view", inputs: [{ name: "tokenId", type: "uint256" }], outputs: [{ type: "address" }] },
   { type: "function", name: "tokenURI", stateMutability: "view", inputs: [{ name: "tokenId", type: "uint256" }], outputs: [{ type: "string" }] },
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "register", stateMutability: "nonpayable", inputs: [{ name: "agentURI", type: "string" }], outputs: [{ type: "uint256" }] },
 ] as const satisfies Abi;
 
 const reputationAbi = [
@@ -96,15 +98,18 @@ export async function resolveEndpoint(agentId: number): Promise<string | null> {
   }
 }
 
+function injectedWallet(account: `0x${string}`) {
+  const eth = (globalThis as { ethereum?: Parameters<typeof custom>[0] }).ethereum;
+  if (!eth) throw new Error("no wallet");
+  return createWalletClient({ account, chain: avalancheFuji, transport: custom(eth) });
+}
+
 export async function giveFeedback(
   account: `0x${string}`,
   agentId: number,
   value: number,
   tag = "compute"
 ): Promise<`0x${string}`> {
-  const eth = (globalThis as { ethereum?: Parameters<typeof custom>[0] }).ethereum;
-  if (!eth) throw new Error("no wallet");
-  const wallet = createWalletClient({ account, chain: avalancheFuji, transport: custom(eth) });
   const { request } = await publicClient.simulateContract({
     account,
     address: ERC8004.reputation,
@@ -112,5 +117,37 @@ export async function giveFeedback(
     functionName: "giveFeedback",
     args: [BigInt(agentId), BigInt(value), 0, tag, "", "", "", ZERO_HASH],
   });
-  return wallet.writeContract(request);
+  return injectedWallet(account).writeContract(request);
+}
+
+// Is this wallet registered as an ERC-8004 agent? (owns >0 identity NFTs)
+export async function isRegistered(address: `0x${string}`): Promise<boolean> {
+  const bal = (await publicClient.readContract({
+    address: ERC8004.identity,
+    abi: identityAbi,
+    functionName: "balanceOf",
+    args: [address],
+  })) as bigint;
+  return bal > 0n;
+}
+
+// Mint an ERC-8004 identity for the connected wallet. Returns the minted agentId
+// (read from the simulation) and the real tx hash.
+export async function registerIdentity(
+  account: `0x${string}`,
+  meta: { name: string }
+): Promise<{ agentId: number; txHash: `0x${string}` }> {
+  const uri = `data:application/json,${encodeURIComponent(
+    JSON.stringify({ name: meta.name, address: account, skills: [] })
+  )}`;
+  const { request, result } = await publicClient.simulateContract({
+    account,
+    address: ERC8004.identity,
+    abi: identityAbi,
+    functionName: "register",
+    args: [uri],
+  });
+  const txHash = await injectedWallet(account).writeContract(request);
+  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  return { agentId: Number(result as bigint), txHash };
 }

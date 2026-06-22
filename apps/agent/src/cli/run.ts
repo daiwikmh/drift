@@ -16,6 +16,10 @@ import { avaxBalance, register, getIdentity, getReputation, giveFeedback } from 
 import { txUrl, addressUrl, nftUrl } from "../chain/client.js";
 import { createInferHandler, type InferRequest, type InferResponse } from "../compute/server.js";
 import { buyInference } from "../compute/buy.js";
+import { scoreSignal, type Signal } from "../compute/signal.js";
+import { spotPrice } from "../compute/market.js";
+import { loadSignals, saveSignals, type SignalRecord } from "../store.js";
+import { randomUUID } from "node:crypto";
 import { usdcBalance } from "../x402/usdc.js";
 
 export type AgentOpts = { name: string; skills: string[] };
@@ -354,24 +358,104 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
         emit("x402", theme.up, `✓ paid ${price} AVAX · ${out.paidWith ?? "avax-native"} · Avalanche Fuji`);
         emitSub(txUrl(out.txHash));
       }
-      emit("drift", theme.accent, out.result || "(empty result)");
       buys++;
       refreshBalance();
       refreshStatus();
-      // Close the trust loop: post real ERC-8004 feedback for a registered provider.
-      if (chosen?.agentId !== undefined) {
-        emitSub("posting reputation feedback on-chain…");
-        try {
-          const fb = await giveFeedback(wallet.privateKey, BigInt(chosen.agentId), 100, "compute");
-          emit("x402", theme.up, `★ feedback posted for agent #${chosen.agentId}`);
-          emitSub(txUrl(fb));
-        } catch (e) {
-          emit("drift", theme.amber, `feedback failed: ${(e as Error).message.split("\n")[0]}`);
+
+      if (out.signal) {
+        // A verifiable trade signal: record it; reputation is posted later at
+        // settlement, weighted by whether the call was actually right.
+        const s = out.signal;
+        emit("drift", theme.accent, `${s.direction.toUpperCase()} ${s.symbol} @ $${s.entryPrice} · ${s.horizonHours}h · conf ${(s.confidence * 100).toFixed(0)}%`);
+        emitSub(s.rationale);
+        const rec: SignalRecord = {
+          id: randomUUID(),
+          provider: chosen?.addr ?? s.provider ?? "",
+          agentId: chosen?.agentId,
+          signal: s as Signal,
+          signature: s.signature,
+          boughtAt: Math.floor(Date.now() / 1000),
+        };
+        const list = await loadSignals(addr);
+        list.push(rec);
+        await saveSignals(addr, list);
+        emit("x402", theme.dim, `recorded · settle in ${s.horizonHours}h with \`settle\` (scores reputation by outcome)`);
+      } else {
+        emit("drift", theme.accent, out.result || "(empty result)");
+        // Generic services have no verifiable outcome — post a simple paid-OK feedback.
+        if (chosen?.agentId !== undefined) {
+          try {
+            const fb = await giveFeedback(wallet.privateKey, BigInt(chosen.agentId), 100, "compute");
+            emit("x402", theme.up, `★ feedback posted for agent #${chosen.agentId}`);
+            emitSub(txUrl(fb));
+          } catch (e) {
+            emit("drift", theme.amber, `feedback failed: ${(e as Error).message.split("\n")[0]}`);
+          }
         }
       }
     } catch (e) {
       emit("drift", theme.amber, `buy failed: ${(e as Error).message}`);
     }
+  };
+
+  // --- signals: list purchased trade signals + settle them against real price ---
+  const fmtAgo = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    return h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`;
+  };
+
+  const doSignals = async () => {
+    const list = await loadSignals(addr);
+    if (!list.length) {
+      emit("drift", theme.amber, "no signals yet — `buy <#> <symbol>` from a trade-signal provider");
+      return;
+    }
+    const now = Math.floor(Date.now() / 1000);
+    list.forEach((r, i) => {
+      const s = r.signal;
+      const ready = now >= s.issuedAt + s.horizonHours * 3600;
+      const status = r.settled
+        ? r.outcome?.hit
+          ? `${c.bold("✓ hit")} ${r.outcome.pnlPct.toFixed(2)}%`
+          : `${c.bold("✗ miss")} ${r.outcome?.pnlPct.toFixed(2)}%`
+        : ready
+          ? c.bold("ready — type `settle`")
+          : `pending · ${fmtAgo(s.issuedAt + s.horizonHours * 3600 - now)} left`;
+      emit("mkt", theme.accent, `${i + 1}. ${s.direction.toUpperCase()} ${s.symbol} @ $${s.entryPrice} (${s.horizonHours}h) · ${status}`);
+    });
+  };
+
+  const doSettle = async () => {
+    const list = await loadSignals(addr);
+    const now = Math.floor(Date.now() / 1000);
+    const due = list.filter((r) => !r.settled && now >= r.signal.issuedAt + r.signal.horizonHours * 3600);
+    if (!due.length) {
+      emit("drift", theme.amber, "nothing to settle yet — signals settle after their horizon (`signals`)");
+      return;
+    }
+    for (const r of due) {
+      try {
+        const price = await spotPrice(r.signal.symbol);
+        const score = scoreSignal(r.signal as Signal, price);
+        r.settled = true;
+        r.outcome = { hit: score.hit, pnlPct: score.pnlPct, exitPrice: score.exitPrice, value: score.value };
+        emit(
+          "x402",
+          score.hit ? theme.up : theme.amber,
+          `${score.hit ? "✓ hit" : "✗ miss"} · ${r.signal.direction.toUpperCase()} ${r.signal.symbol} ${score.pnlPct.toFixed(2)}% → reputation ${score.value}`
+        );
+        if (r.agentId !== undefined) {
+          const fb = await giveFeedback(wallet.privateKey, BigInt(r.agentId), score.value, "trade-signal");
+          r.outcome.feedbackTx = fb;
+          emitSub(txUrl(fb));
+        }
+      } catch (e) {
+        emit("drift", theme.amber, `settle failed for ${r.signal.symbol}: ${(e as Error).message.split("\n")[0]}`);
+      }
+    }
+    await saveSignals(addr, list);
   };
 
   const dispatch = async (raw: string) => {
@@ -383,7 +467,9 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
       case "help":
         box("commands", [
           `${c.bold("providers")}              compute providers online, ranked by reputation`,
-          `${c.bold("buy <#|url> <prompt>")}   pay a provider (AVAX) & get the inference result`,
+          `${c.bold("buy <#> <symbol>")}       pay a provider (AVAX); a trade-signal is recorded`,
+          `${c.bold("signals")}                my purchased trade signals + their status`,
+          `${c.bold("settle")}                 score ready signals vs price → on-chain reputation`,
           `${c.bold("register")}               mint my on-chain ERC-8004 identity`,
           `${c.bold("onchain")}                read my identity back from Avalanche + explorer links`,
           `${c.bold("peers")}                  agents online right now`,
@@ -424,6 +510,12 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
         await doBuy(rest);
         return;
       }
+      case "signals":
+        await doSignals();
+        return;
+      case "settle":
+        await doSettle();
+        return;
       case "skills":
         emit(
           "drift",

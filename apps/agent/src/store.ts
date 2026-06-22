@@ -86,3 +86,39 @@ export async function saveAgentId(address: string, agentId: bigint): Promise<voi
     mode: 0o600,
   });
 }
+
+// Trade signals the buyer purchased, kept until they can be settled against price.
+export interface SignalRecord {
+  id: string;
+  provider: string; // provider address
+  agentId?: number; // provider's ERC-8004 id (for outcome-weighted feedback)
+  signal: {
+    symbol: string;
+    direction: "long" | "short" | "flat";
+    horizonHours: number;
+    entryPrice: number;
+    confidence: number;
+    rationale: string;
+    issuedAt: number;
+    model?: string | null;
+  };
+  signature?: string;
+  boughtAt: number;
+  settled?: boolean;
+  outcome?: { hit: boolean; pnlPct: number; exitPrice: number; value: number; feedbackTx?: string };
+}
+
+const signalsFile = (address: string) => join(DRIFT_DIR, `signals-${address.toLowerCase()}.json`);
+
+export async function loadSignals(address: string): Promise<SignalRecord[]> {
+  try {
+    return JSON.parse(await readFile(signalsFile(address), "utf8")) as SignalRecord[];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveSignals(address: string, list: SignalRecord[]): Promise<void> {
+  await mkdir(DRIFT_DIR, { recursive: true });
+  await writeFile(signalsFile(address), JSON.stringify(list, null, 2), { mode: 0o600 });
+}

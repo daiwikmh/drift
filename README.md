@@ -31,20 +31,22 @@ The point is **metered compute without a middleman**. There's no account, no API
 
 One agent is the **provider** (`drift agent --skills llm-inference`). The buyer is another agent's `buy` command, or the web app:
 
+Inference is **proxied through the relay** over the WebSocket the provider already
+holds — so a provider on a laptop/NAT needs no public URL.
+
 ```
-BUYER (cli `buy` / web)                        PROVIDER (drift agent --skills llm-inference)
-● providers   ── GET relay /providers ──────▶  serves POST /infer behind x402
-  └ ranks candidates by ERC-8004 reputation     (endpoint published in its ERC-8004 metadata)
+BUYER (cli `buy` / web)            RELAY (public)              PROVIDER (drift agent --skills …)
+● providers ── GET /providers ──▶  ranked by reputation        (dialed out, holds a WS)
 ● buy 1 "explain proof of stake"
-      └ POST /infer  ───────────────────────▶  402 Payment Required
-  402 · { pay AVAX or USDC → payTo }  ◀───────    accepts: [ avax-native, usdc-x402 ]
-● pays native AVAX on Fuji  (1 tx)
-      └ POST /infer + X-PAYMENT ────────────▶  verifies the transfer on-chain
-  200 · { result, txHash }            ◀───────  → runs the LLM (NVIDIA NIM / OpenRouter)
-● giveFeedback(agentId, ★) on-chain ────────▶  reputation updates → ranks future buys
+   POST /infer/<addr> ──────────▶  forward over WS ──────────▶ 402 · accepts:[avax, usdc]
+  402 · { pay AVAX or USDC }  ◀──  ◀── relay returns reply ───
+● pays native AVAX on Fuji (1 tx)
+   POST /infer/<addr> +X-PAYMENT ▶  forward over WS ──────────▶ verify on-chain → run LLM
+  200 · { result, txHash }    ◀──  ◀────────────────────────── (NVIDIA NIM / OpenRouter)
+● giveFeedback(agentId, ★) on-chain ────────────────────────▶ reputation updates → ranks future buys
 ```
 
-No human approved the provider, the price, or the payment. The settlement and the feedback are **real Avalanche Fuji transactions** with explorer links — never faked.
+No human approved the provider, the price, or the payment. The settlement and the feedback are **real Avalanche Fuji transactions** with explorer links — never faked. The relay only moves bytes; it can't forge identity, reputation, or payment.
 
 ---
 
@@ -61,7 +63,7 @@ We register **against the canonical registries** — no custom contract to deplo
 | Reputation | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | `giveFeedback` after every buy → the score that **ranks providers** |
 
 ### x402 — agent-native payments (two rails)
-A buyer's unpaid `POST /infer` returns **HTTP 402** advertising how to pay; it retries with an `X-PAYMENT` header. Two schemes:
+A buyer's unpaid `POST /infer/<addr>` (to the relay) returns **HTTP 402** advertising how to pay; it retries with an `X-PAYMENT` header. Two schemes:
 
 - **Native AVAX** *(default)* — the buyer sends one AVAX transfer on Fuji; the provider verifies it on-chain (recipient, amount, confirmed, no replay) and serves. Simplest, works in any wallet.
 - **USDC** *(gasless)* — EIP-3009 `transferWithAuthorization` on USDC Fuji (`0x5425890298aed601595a70AB815c96711a31Bc65`); the buyer only signs, the provider settles and pays gas. Standard x402 "exact" scheme.
@@ -77,25 +79,24 @@ graph TD
   subgraph m1["buyer"]
     B["drift agent (buy)<br/>or web app"]
   end
-  subgraph m2["provider"]
-    P["drift agent --skills llm-inference<br/>x402 /infer server"]
+  subgraph m2["provider (laptop / anywhere)"]
+    P["drift agent --skills llm-inference<br/>(no public URL)"]
   end
 
-  B <-->|"who's live (GET /providers)"| R["relay<br/>rendezvous hub + /providers"]
-  P <-->|"announce presence"| R
+  B -->|"GET /providers · POST /infer/&lt;addr&gt; + X-PAYMENT"| R["relay (public)<br/>/providers · /infer proxy"]
+  P <-->|"WS: presence + proxied inference"| R
 
-  B -->|"POST /infer + X-PAYMENT"| P
-  B -->|"resolve endpoint · read rep · pay · feedback"| CH
-  P -->|"register (endpoint in metadata) · verify payment"| CH
+  B -->|"read rep · pay · feedback"| CH
+  P -->|"register · verify payment"| CH
 
   CH[("Avalanche Fuji<br/>ERC-8004 identity · reputation<br/>AVAX / USDC settlement")]
 
   P -. "serves the inference" .-> LLM["NVIDIA NIM / OpenRouter"]
 ```
 
-- **Chain (Fuji)** — identity, the published endpoint, reputation, and payment settlement. Global; every machine sees it.
-- **Relay** — agents *dial out* to a WebSocket hub (NAT-safe) that also serves `GET /providers` over HTTP for the web. It holds **no trust** — only liveness.
-- **Provider** — a `drift` agent that, when booted with `--skills`, runs an x402-gated HTTP `/infer` server and advertises it.
+- **Chain (Fuji)** — identity, reputation, and payment settlement. Global; every machine sees it.
+- **Relay** — the public hub: agents *dial out* over WebSocket (NAT-safe); it serves `GET /providers` and **proxies `POST /infer/<addr>`** to the provider over that WS. Holds **no trust** — only moves bytes + reports liveness.
+- **Provider** — a `drift` agent booted with `--skills`. It answers proxied inference over its WS, so it needs **no public URL** — it can run on a laptop.
 
 ---
 
@@ -138,11 +139,23 @@ Connect a wallet (Core / MetaMask) on Fuji → browse providers ranked by reputa
 
 ```bash
 AGENT_PRIVATE_KEY=0x…       # use a specific wallet instead of the auto-created one
-RELAY_URL=ws://host:8787    # remote relay (default ws://localhost:8787)
+RELAY_URL=wss://host        # remote relay (default ws://localhost:8787)
 FUJI_RPC_URL=               # custom Fuji RPC (defaults to the public endpoint)
 OPENROUTER_API_KEY=         # or NVIDIA_API_KEY — seeds the LLM instead of `setup`
 COMPUTE_PRICE_AVAX=0.001    # provider price per call (AVAX); COMPUTE_PRICE_USDC for the USDC rail
-COMPUTE_PUBLIC_URL=         # advertise a reachable URL instead of localhost (cross-machine)
+```
+
+## Deploy
+
+Host the **relay** (Railway) and the **web** (Vercel); providers run anywhere and
+dial out — no public URL needed. Full walkthrough in **[DEPLOY.md](./DEPLOY.md)**.
+
+```bash
+# relay  → Railway: root apps/agent (ships Dockerfile + railway.json), binds $PORT
+# web    → Vercel: root apps/web, set NEXT_PUBLIC_RELAY_HTTP=https://<relay-domain>
+# provider (anywhere):
+RELAY_URL=wss://<relay-domain> OPENROUTER_API_KEY=sk-or-… \
+  npm run drift -- --name oracle --skills llm-inference
 ```
 
 ---
@@ -179,12 +192,14 @@ Stated honestly, because the whole point is verifiable trust:
 |---|---|
 | Immersive agent terminal + zero-config persisted wallet + `setup` | ✅ built |
 | Cross-machine mesh (relay + A2A, NAT-safe) + `GET /providers` for the web | ✅ built |
+| **Relay-proxied inference** (`POST /infer/<addr>` over WS — providers need no public URL) | ✅ built |
 | ERC-8004 register on Fuji, with **endpoint + price in the metadata** | ✅ built |
 | On-chain discovery + provider ranking by ERC-8004 **reputation** | ✅ built |
-| x402 `/infer` endpoint — **native AVAX** settlement (verified on-chain) | ✅ built |
+| x402 inference — **native AVAX** settlement (verified on-chain) | ✅ built |
 | x402 **USDC** settlement (EIP-3009, gasless for the payer) | ✅ built |
 | `giveFeedback` on-chain after each purchase (closes the trust loop) | ✅ built |
-| Web app — connect wallet, buy inference, Snowtrace links | ✅ built |
+| Web app — landing + dashboard (buy, **register identity**, balances), Snowtrace links | ✅ built |
+| Deploy: Railway relay + Vercel web ([DEPLOY.md](./DEPLOY.md)) | ✅ built |
 | Validation Registry (independent attestation of work) | 🔜 planned |
 
 Every settlement and feedback is a real Fuji transaction with a Snowtrace link — never a placeholder hash.

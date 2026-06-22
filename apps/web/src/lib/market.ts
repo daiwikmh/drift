@@ -12,6 +12,8 @@ export const EXPLORER = "https://testnet.snowtrace.io";
 
 export const RELAY_HTTP =
   process.env.NEXT_PUBLIC_RELAY_HTTP || "http://localhost:8787";
+// WebSocket form of the relay — used by the in-browser provider.
+export const RELAY_WS = RELAY_HTTP.replace(/^http/, "ws");
 
 const publicClient = createPublicClient({ chain: avalancheFuji, transport: http(RPC) });
 
@@ -102,7 +104,49 @@ export async function listProviders(): Promise<Provider[]> {
   return enriched;
 }
 
-export type BuyResult = { result: string; model: string | null; txHash: `0x${string}`; paidWith?: string };
+export type SignalPayload = {
+  symbol: string;
+  direction: "long" | "short" | "flat";
+  horizonHours: number;
+  entryPrice: number;
+  confidence: number;
+  rationale: string;
+  issuedAt: number;
+  model?: string | null;
+  provider?: string;
+  signature?: string;
+};
+
+export type VaultPick = {
+  project: string;
+  symbol: string;
+  apy: number;
+  tvlUsd: number;
+  pool: string;
+  stable: boolean;
+  allocationPct: number;
+  usd: number;
+};
+export type AllocationPayload = {
+  capital: number;
+  risk: "conservative" | "balanced" | "aggressive";
+  items: VaultPick[];
+  blendedApy: number;
+  projYearUsd: number;
+  rationale: string;
+  issuedAt: number;
+  provider?: string;
+  signature?: string;
+};
+
+export type BuyResult = {
+  result: string;
+  model?: string | null;
+  txHash: `0x${string}`;
+  paidWith?: string;
+  signal?: SignalPayload;
+  allocation?: AllocationPayload;
+};
 
 // Pay native AVAX, then unlock the inference. Returns the result + settlement tx.
 export async function buyInference(

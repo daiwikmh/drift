@@ -5,7 +5,24 @@ import { createPayment } from "../x402/client.js";
 import { payAvax, AVAX_SCHEME, type AvaxRequirements } from "../x402/avax.js";
 import type { PaymentRequirements } from "../x402/types.js";
 
-export type Purchase = { result: string; model: string | null; txHash?: string; paidWith?: string };
+export type Purchase = {
+  result: string;
+  model?: string | null;
+  txHash?: string;
+  paidWith?: string;
+  signal?: {
+    symbol: string;
+    direction: "long" | "short" | "flat";
+    horizonHours: number;
+    entryPrice: number;
+    confidence: number;
+    rationale: string;
+    issuedAt: number;
+    model?: string | null;
+    provider?: string;
+    signature?: string;
+  };
+};
 type Accept = (PaymentRequirements | AvaxRequirements) & { scheme: string };
 
 export async function buyInference(

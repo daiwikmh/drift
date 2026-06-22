@@ -6,4 +6,5 @@
 set -e
 cd "$(dirname "$0")/apps/agent"
 [ -d node_modules ] || npm install
+
 exec npx tsx src/cli.ts "$@"

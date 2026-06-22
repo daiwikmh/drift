@@ -11,22 +11,24 @@ const spring = { stiffness: 60, damping: 22, mass: 0.6 };
 function Backdrop() {
   return (
     <>
+      {/* base color — also the full backdrop if no art is dropped in */}
+      <div aria-hidden className="absolute inset-0 bg-[#070809]" />
+
+      {/* hero art — 3D agent mesh (periwinkle nodes + red ember, dark center) */}
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: "url(/3D_mesh_neural_network_background_202606221128.jpeg)" }}
+      />
+
+      {/* soft scrim behind the headline for legibility; edges stay bright so the
+          mesh shows. Plus a gentle fade into the next section at the bottom. */}
       <div
         aria-hidden
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(900px 520px at 50% 8%, rgba(154,168,240,0.18), transparent 60%), radial-gradient(700px 500px at 82% 30%, rgba(232,65,66,0.10), transparent 60%), linear-gradient(180deg, #070809 0%, #06070c 60%, #070809 100%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-[0.06]"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)",
-          backgroundSize: "64px 64px",
-          maskImage: "radial-gradient(ellipse at 50% 30%, black, transparent 75%)",
+            "radial-gradient(58% 42% at 50% 44%, rgba(7,8,9,0.55) 0%, transparent 72%), linear-gradient(180deg, transparent 70%, #070809 100%)",
         }}
       />
     </>

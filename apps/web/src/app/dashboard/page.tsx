@@ -1,16 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  buyInference,
-  EXPLORER,
-  getCard,
-  listProviders,
-  type BuyResult,
-  type Card as ProviderCard,
-  type Provider,
-} from "@/lib/market";
+import { buyInference, EXPLORER, listProviders, type BuyResult, type Provider } from "@/lib/market";
 import { giveFeedback } from "@/lib/chain";
+import { addSignal } from "@/lib/signals";
 import { useWallet } from "@/components/dashboard/WalletContext";
 import { Card, Stat, btnPrimary, fieldCls, microLabel } from "@/components/dashboard/ui";
 
@@ -21,7 +14,6 @@ const repText = (p: Provider) =>
 export default function Marketplace() {
   const { account, connect, connecting, refreshBalances } = useWallet();
   const [providers, setProviders] = useState<Provider[]>([]);
-  const [cards, setCards] = useState<Record<string, ProviderCard>>({});
   const [selected, setSelected] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState("");
@@ -34,10 +26,7 @@ export default function Marketplace() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const ps = await listProviders();
-      setProviders(ps);
-      const entries = await Promise.all(ps.map(async (p) => [p.endpoint, await getCard(p.endpoint)] as const));
-      setCards(Object.fromEntries(entries.filter(([, c]) => c)) as Record<string, ProviderCard>);
+      setProviders(await listProviders());
     } catch {
       setProviders([]);
     } finally {
@@ -49,20 +38,31 @@ export default function Marketplace() {
     void refresh();
   }, [refresh]);
 
+  const sel = providers.find((p) => p.addr === selected) ?? null;
+
   const buy = async () => {
-    if (!account || !selected || !prompt.trim()) return;
+    if (!account || !sel || !prompt.trim()) return;
     setBusy(true);
     setError(null);
     setOut(null);
     setFeedbackTx(null);
     try {
-      const res = await buyInference(selected, prompt.trim(), account, model.trim() || undefined);
+      const res = await buyInference(sel.endpoint, prompt.trim(), account, model.trim() || undefined);
       setOut(res);
       refreshBalances();
-      const prov = providers.find((p) => p.endpoint === selected);
-      if (prov?.agentId !== undefined) {
+      if (res.signal) {
+        // Verifiable trade signal: record it; reputation is posted at settlement
+        // (My signals), weighted by whether the call was actually right.
+        addSignal(account, {
+          id: crypto.randomUUID(),
+          provider: sel.addr,
+          agentId: sel.agentId,
+          signal: res.signal,
+          boughtAt: Math.floor(Date.now() / 1000),
+        });
+      } else if (sel.agentId !== undefined) {
         try {
-          setFeedbackTx(await giveFeedback(account, prov.agentId, 100));
+          setFeedbackTx(await giveFeedback(account, sel.agentId, 100));
           void refresh();
         } catch {
           /* feedback best-effort */
@@ -75,8 +75,8 @@ export default function Marketplace() {
     }
   };
 
-  const selCard = selected ? cards[selected] : null;
   const registered = providers.filter((p) => p.agentId !== undefined).length;
+  const cheapest = providers.length ? Math.min(...providers.map((p) => p.priceAvax ?? Infinity)) : null;
 
   return (
     <div className="mx-auto max-w-5xl px-8 py-9">
@@ -95,7 +95,7 @@ export default function Marketplace() {
       <div className="mt-7 grid gap-4 sm:grid-cols-3">
         <Stat label="providers online" value={providers.length} />
         <Stat label="on-chain (ERC-8004)" value={registered} tint={registered ? "#9aa8f0" : undefined} />
-        <Stat label="cheapest" value={selCard ? `${selCard.priceAvax ?? "?"} AVAX` : "—"} />
+        <Stat label="cheapest" value={cheapest && cheapest !== Infinity ? `${cheapest} AVAX` : "—"} />
       </div>
 
       <div className="mb-3 mt-9 text-[11px] uppercase tracking-[0.16em] text-white/30">Providers</div>
@@ -115,12 +115,11 @@ npm run drift -- --name oracle --skills llm-inference`}
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {providers.map((p) => {
-            const c = cards[p.endpoint];
-            const on = selected === p.endpoint;
+            const on = selected === p.addr;
             return (
               <button
-                key={p.endpoint}
-                onClick={() => setSelected(p.endpoint)}
+                key={p.addr}
+                onClick={() => setSelected(p.addr)}
                 className={`rounded-2xl border bg-white/[0.02] p-5 text-left transition hover:border-[#9aa8f0]/50 ${
                   on ? "border-[#9aa8f0] shadow-[0_0_0_1px_#9aa8f0]" : "border-white/10"
                 }`}
@@ -131,15 +130,15 @@ npm run drift -- --name oracle --skills llm-inference`}
                     {repText(p)}
                   </span>
                 </div>
-                <div className="mt-1.5 text-[12px] text-[#9aa8f0]">{c?.skill ?? p.skills[0] ?? "compute"}</div>
+                <div className="mt-1.5 text-[12px] text-[#9aa8f0]">{p.skills[0] ?? "compute"}</div>
                 <div className="mt-3 text-[12px] leading-relaxed text-white/40">
-                  {c?.provider ? `${c.provider} · ${c.model}` : "model: —"}
+                  {p.model ?? "model: —"}
                   <br />
                   {p.agentId !== undefined ? `ERC-8004 #${p.agentId} · ` : "unregistered · "}
                   {short(p.addr)}
                 </div>
                 <div className="mt-3 text-[13px]">
-                  <span className="font-semibold text-[#e84142]">{c?.priceAvax ?? "?"} AVAX</span>{" "}
+                  <span className="font-semibold text-[#e84142]">{p.priceAvax ?? "?"} AVAX</span>{" "}
                   <span className="text-white/35">/ call</span>
                 </div>
               </button>
@@ -151,9 +150,9 @@ npm run drift -- --name oracle --skills llm-inference`}
       <div className="mb-3 mt-9 text-[11px] uppercase tracking-[0.16em] text-white/30">Buy inference</div>
       <Card>
         <div className="mb-3 text-[12.5px] text-white/40">
-          {selCard ? (
+          {sel ? (
             <>
-              → <span className="text-white/70">{selCard.name}</span> · {selCard.priceAvax ?? "?"} AVAX/call
+              → <span className="text-white/70">{sel.name}</span> · {sel.priceAvax ?? "?"} AVAX/call
             </>
           ) : (
             "select a provider above"
@@ -179,7 +178,7 @@ npm run drift -- --name oracle --skills llm-inference`}
             />
           </label>
           {account ? (
-            <button className={btnPrimary} disabled={!selected || !prompt.trim() || busy} onClick={buy}>
+            <button className={btnPrimary} disabled={!sel || !prompt.trim() || busy} onClick={buy}>
               {busy ? "Paying AVAX…" : "Pay & run"}
             </button>
           ) : (
@@ -196,6 +195,24 @@ npm run drift -- --name oracle --skills llm-inference`}
             <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-white/30">
               Result {out.model && <span className="font-mono normal-case tracking-normal text-white/40">· {out.model}</span>}
             </div>
+            {out.signal && (
+              <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                <span
+                  className="rounded-md px-2 py-1 text-[12px] font-bold"
+                  style={{
+                    background: out.signal.direction === "short" ? "rgba(232,65,66,0.15)" : "rgba(52,211,153,0.15)",
+                    color: out.signal.direction === "short" ? "#e84142" : "#34d399",
+                  }}
+                >
+                  {out.signal.direction.toUpperCase()}
+                </span>
+                <span className="font-mono text-[13px] text-white/80">{out.signal.symbol}</span>
+                <span className="text-[12px] text-white/45">entry ${out.signal.entryPrice}</span>
+                <span className="text-[12px] text-white/45">{out.signal.horizonHours}h</span>
+                <span className="text-[12px] text-white/45">conf {(out.signal.confidence * 100).toFixed(0)}%</span>
+                <span className="ml-auto text-[11px] text-[#9aa8f0]">recorded → settle in My signals</span>
+              </div>
+            )}
             <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-white/90">{out.result}</div>
             <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-[12px]">
               {out.txHash && (

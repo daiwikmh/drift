@@ -3,7 +3,10 @@
 // WebSocket — the buyer's request is proxied to the provider, which never needs a
 // public URL. An unpaid request returns 402 with the ways to pay; a paid one is
 // verified/settled on Avalanche Fuji, then served by the agent's LLM.
+import { privateKeyToAccount } from "viem/accounts";
 import { complete, llmEnabled, llmMeta } from "../llm.js";
+import { generateSignal } from "./signal.js";
+import { generateAllocation } from "./yield.js";
 import {
   buildRequirements,
   decodePayment,
@@ -95,11 +98,42 @@ export function createInferHandler(opts: ComputeOpts): (req: InferRequest) => Pr
       log(`settled ✓ ${settled.txHash}`);
     }
 
+    const paymentResponse = encodePaymentResponse({ success: true, txHash, network: avaxReq.network, payer });
+
+    // Flagship verifiable service: a signed, structured trade signal. The buyer
+    // records it and later settles it against real price → on-chain reputation.
+    if (opts.skill === "trade-signal") {
+      const signal = await generateSignal(prompt);
+      const account = privateKeyToAccount(opts.privateKey);
+      const message = `drift-signal:${signal.symbol}:${signal.direction}:${signal.horizonHours}:${signal.entryPrice}:${signal.issuedAt}`;
+      const signature = await account.signMessage({ message });
+      log(`signal · ${signal.direction} ${signal.symbol} @ $${signal.entryPrice} (${signal.horizonHours}h)`);
+      return {
+        status: 200,
+        body: { result: signal.rationale, signal: { ...signal, provider: opts.address, signature }, txHash, payer, paidWith: scheme },
+        paymentResponse,
+      };
+    }
+
+    // Capital-deployment plan over EXISTING Avalanche vaults (no custody here).
+    if (opts.skill === "yield-allocator") {
+      const allocation = await generateAllocation(prompt);
+      const account = privateKeyToAccount(opts.privateKey);
+      const message = `drift-yield:${allocation.capital}:${allocation.risk}:${allocation.blendedApy}:${allocation.issuedAt}`;
+      const signature = await account.signMessage({ message });
+      log(`yield · ${allocation.risk} · ${allocation.items.length} vaults · ${allocation.blendedApy}% blended`);
+      return {
+        status: 200,
+        body: { result: allocation.rationale, allocation: { ...allocation, provider: opts.address, signature }, txHash, payer, paidWith: scheme },
+        paymentResponse,
+      };
+    }
+
     const result = await complete(system, prompt, model);
     return {
       status: 200,
       body: { result: result ?? "", model: model ?? llmMeta()?.model ?? null, txHash, payer, paidWith: scheme },
-      paymentResponse: encodePaymentResponse({ success: true, txHash, network: avaxReq.network, payer }),
+      paymentResponse,
     };
   };
 }
