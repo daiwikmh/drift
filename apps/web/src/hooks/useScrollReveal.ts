@@ -1,7 +1,20 @@
 "use client";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-export function useScrollReveal<T extends HTMLElement>(threshold = 0.2) {
+import { useEffect, useRef, useState } from "react";
+
+export function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+    const on = () => setReduced(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return reduced;
+}
+
+export function useScrollReveal<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   const [shown, setShown] = useState(false);
   useEffect(() => {
@@ -14,24 +27,10 @@ export function useScrollReveal<T extends HTMLElement>(threshold = 0.2) {
           io.disconnect();
         }
       },
-      { threshold }
+      { threshold: 0.15 }
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [threshold]);
+  }, []);
   return { ref, shown };
-}
-
-const QUERY = "(prefers-reduced-motion: reduce)";
-
-export function useReducedMotion() {
-  return useSyncExternalStore(
-    (onChange) => {
-      const mq = window.matchMedia(QUERY);
-      mq.addEventListener("change", onChange);
-      return () => mq.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia(QUERY).matches,
-    () => false
-  );
 }

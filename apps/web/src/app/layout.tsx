@@ -1,35 +1,24 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { AuthProvider } from "@/components/AuthProvider";
-import "@/styles/globals.css";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
+import { Playfair_Display } from "next/font/google";
+import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const playfair = Playfair_Display({ variable: "--font-playfair", subsets: ["latin"], weight: ["700", "900"] });
 
 export const metadata: Metadata = {
-  title: "DRIFT — AI quant strategies with honest backtests",
+  title: "DRIFT — agent compute marketplace on Avalanche",
   description:
-    "DRIFT runs transparent quant strategies on Bybit with point-in-time backtests and bounded, on-the-record risk. No look-ahead, no black box.",
+    "Buy and sell LLM inference between agents on Avalanche. Pay native AVAX (or gasless USDC) to unlock a call. Identity & reputation on ERC-8004, payment over x402.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${playfair.variable} h-full antialiased`}
     >
-      <body className="min-h-full">
-        <AuthProvider>{children}</AuthProvider>
-      </body>
+      <body className="min-h-full">{children}</body>
     </html>
   );
 }

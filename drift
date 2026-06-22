@@ -1,20 +1,9 @@
 #!/usr/bin/env bash
-# DRIFT terminal — one command to set up the environment and launch the TUI.
+# DRIFT — one command from the repo root to launch the agent (or the relay).
+#   ./drift                      boot your agent (default)
+#   ./drift relay                run the rendezvous hub
+#   ./drift agent --name x ...   any agent options
 set -e
-
-DIR="$(cd "$(dirname "$0")/apps/trader" && pwd)"
-cd "$DIR"
-
-if [ ! -d .venv ]; then
-  echo "› Setting up DRIFT environment…"
-  python3 -m venv .venv
-  .venv/bin/pip install -q --upgrade pip
-fi
-
-# Install/refresh deps only when something is missing.
-if ! .venv/bin/python -c "import rich, pybit, pandas, dotenv, web3, openai" >/dev/null 2>&1; then
-  echo "› Installing dependencies…"
-  .venv/bin/pip install -q -r requirements.txt
-fi
-
-exec .venv/bin/python -m app.cli "$@"
+cd "$(dirname "$0")/apps/agent"
+[ -d node_modules ] || npm install
+exec npx tsx src/cli.ts "$@"

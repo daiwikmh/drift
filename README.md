@@ -2,15 +2,15 @@
 
 # DRIFT
 
-### Autonomous agents that hire each other on Avalanche — and trust each other without a human in the loop.
+### An agent compute marketplace on Avalanche — buy and sell LLM inference, settled on-chain, no human in the loop.
 
-*An agent discovers another agent, negotiates a price, escrows payment, accepts the work, and pays — no person approves the hire, the price, or the payment. Identity and reputation live on-chain (ERC-8004); payment settles over x402.*
+*A provider agent puts an LLM behind a paywalled API. A buyer discovers it, ranks candidates by **on-chain reputation**, pays **native AVAX** (or gasless USDC) to unlock the call, gets the result, and posts feedback on-chain. Identity and reputation live on **ERC-8004**; payment is an **x402** HTTP 402 flow. No person approves the provider, the price, or the payment.*
 
 [![Avalanche Fuji](https://img.shields.io/badge/Chain-Avalanche%20Fuji-e84142?logo=avalanche&logoColor=white)](https://testnet.snowtrace.io)
 [![ERC-8004](https://img.shields.io/badge/Identity-ERC--8004-627eea?logo=ethereum&logoColor=white)](https://eips.ethereum.org/EIPS/eip-8004)
 [![x402](https://img.shields.io/badge/Payments-x402-000000)](https://www.x402.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Ink](https://img.shields.io/badge/TUI-Ink-cyan?logo=react&logoColor=white)](https://github.com/vadimdemedes/ink)
+[![Next.js](https://img.shields.io/badge/Web-Next.js-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#-license)
 
 </div>
@@ -19,161 +19,175 @@
 
 ## What is DRIFT?
 
-**DRIFT is an agent-to-agent labor market.** Each DRIFT agent is a process with its own wallet, an on-chain identity, and a set of skills it offers. Agents find each other, give each other jobs, do the work, and pay each other — autonomously.
+**DRIFT is an agent-to-agent compute marketplace.** A provider is a process with its own wallet, an on-chain identity, and an LLM it sells access to — exposed as an **x402-gated `/infer` endpoint**. A buyer (another agent in the terminal, or a person in the web app) discovers providers, **ranks them by on-chain reputation**, pays to unlock a single call, and posts feedback afterward. The chain is the source of truth for *who* an agent is, *how to reach and pay it*, and *how trustworthy it is*.
 
-The point is **trust without human intervention**. When agent A needs work done, it doesn't ask a person which provider to use — it reads the candidates' **on-chain reputation** and decides. When agent B is offered a job by a stranger, it checks A's history on-chain before engaging. Payment is escrowed and settled machine-to-machine. The only human input is the goal; the agents handle discovery, negotiation, trust, and money themselves.
+The point is **metered compute without a middleman**. There's no account, no API-key reseller, no invoice. The buyer pays per call on Avalanche; the provider verifies the payment on-chain and serves the result. Selection is driven by earned, verifiable reputation — not by a human picking a vendor.
 
-It runs as a terminal app (one process = one agent = one window). Run two and watch them hire each other.
-
-> **The thesis:** on the agentic web, agents need to transact with counterparties they've never met. DRIFT puts identity and reputation **on-chain** (ERC-8004) and payment **on a settlement rail** (x402) — so trust is earned and verifiable, not granted by a human clicking *approve*.
+> **The thesis:** on the agentic web, agents pay each other for work they can't do themselves. DRIFT puts identity + reputation **on-chain** (ERC-8004) and payment **on a settlement rail** (x402 over Avalanche) — so a buyer can trust a provider it has never met, and pay it in one HTTP round-trip.
 
 ---
 
-## How a hire works
+## How a purchase works
 
-One agent is the **client** (it needs work). One or more are **workers** (they offer skills). The human gives the client a goal; everything below is autonomous:
+One agent is the **provider** (`drift agent --skills llm-inference`). The buyer is another agent's `buy` command, or the web app:
 
 ```
-CLIENT (specter)                                WORKER (auditor)
-● market.list skill="solidity-audit"
-  └ ranks candidates by on-chain reputation
-● agent.message  ───────────────────────────▶  inbox: new job request
-                                                ● market.history peer=…   (checks client's
-                                                  └ trusted · 0 disputes      reputation on-chain)
-inbox: quote 5 USDC · 4h  ◀───────────────────  ● agent.message reply  · quote
-● market.createJob escrow=true
-  └ locks 5 USDC escrow (x402)  ──────────────▶  hired → does the work
-inbox: delivered sha256:6a0c…  ◀──────────────  ● market.deliver  (real result)
-● market.acceptResult
-  └ releases escrow · posts feedback ─────────▶  settled · +5 USDC
-       (reputation updates on-chain)
+BUYER (cli `buy` / web)                        PROVIDER (drift agent --skills llm-inference)
+● providers   ── GET relay /providers ──────▶  serves POST /infer behind x402
+  └ ranks candidates by ERC-8004 reputation     (endpoint published in its ERC-8004 metadata)
+● buy 1 "explain proof of stake"
+      └ POST /infer  ───────────────────────▶  402 Payment Required
+  402 · { pay AVAX or USDC → payTo }  ◀───────    accepts: [ avax-native, usdc-x402 ]
+● pays native AVAX on Fuji  (1 tx)
+      └ POST /infer + X-PAYMENT ────────────▶  verifies the transfer on-chain
+  200 · { result, txHash }            ◀───────  → runs the LLM (NVIDIA NIM / OpenRouter)
+● giveFeedback(agentId, ★) on-chain ────────▶  reputation updates → ranks future buys
 ```
 
-No human approved the counterparty, the price, or the payment.
+No human approved the provider, the price, or the payment. The settlement and the feedback are **real Avalanche Fuji transactions** with explorer links — never faked.
 
 ---
 
 ## On-chain primitives
 
-DRIFT is built on two standards, both live on Avalanche:
+DRIFT is built on two standards, both live on Avalanche Fuji:
 
-### ERC-8004 — Trustless Agents *(identity + reputation)*
-We register **against the canonical registries** — no custom contract to deploy.
+### ERC-8004 — Trustless Agents *(identity + reputation + discovery)*
+We register **against the canonical registries** — no custom contract to deploy. A provider stores its **compute endpoint + price** in its registration metadata, so discovery resolves from the chain.
 
 | Registry | Fuji address | Role |
 |---|---|---|
-| Identity | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | each agent = an on-chain identity (name, skills, endpoint) |
-| Reputation | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | feedback after every job → the trust score that drives selection |
-| Validation | *(wired with the Validator agent)* | independent attestation that work was actually done |
+| Identity | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | each agent = an on-chain identity; metadata holds name, skills, **endpoint, price** |
+| Reputation | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | `giveFeedback` after every buy → the score that **ranks providers** |
 
-### x402 — agent-native payments
-HTTP-`402`-style signed payment authorizations settled in **USDC on Fuji** (`0x5425890298aed601595a70AB815c96711a31Bc65`), via EIP-3009 `transferWithAuthorization` — the client signs, a facilitator settles, no gas for the payer. ~1s finality on Avalanche.
+### x402 — agent-native payments (two rails)
+A buyer's unpaid `POST /infer` returns **HTTP 402** advertising how to pay; it retries with an `X-PAYMENT` header. Two schemes:
+
+- **Native AVAX** *(default)* — the buyer sends one AVAX transfer on Fuji; the provider verifies it on-chain (recipient, amount, confirmed, no replay) and serves. Simplest, works in any wallet.
+- **USDC** *(gasless)* — EIP-3009 `transferWithAuthorization` on USDC Fuji (`0x5425890298aed601595a70AB815c96711a31Bc65`); the buyer only signs, the provider settles and pays gas. Standard x402 "exact" scheme.
 
 ---
 
 ## Architecture
 
-The split that makes it work: **the chain is the global source of truth; a thin relay is just the live wire.**
+**The chain is the global source of truth; a thin relay is just the live wire.**
 
 ```mermaid
 graph TD
-  H["human goal:<br/>'hire an auditor'"] --> CA
-
-  subgraph m1["machine A"]
-    CA["drift agent · specter<br/>(client)"]
+  subgraph m1["buyer"]
+    B["drift agent (buy)<br/>or web app"]
   end
-  subgraph m2["machine B"]
-    WA["drift agent · auditor<br/>(worker)"]
+  subgraph m2["provider"]
+    P["drift agent --skills llm-inference<br/>x402 /infer server"]
   end
 
-  CA <-->|"A2A: negotiate · deliver<br/>(dial OUT, NAT-safe)"| R["relay<br/>rendezvous hub"]
-  WA <-->|"A2A"| R
+  B <-->|"who's live (GET /providers)"| R["relay<br/>rendezvous hub + /providers"]
+  P <-->|"announce presence"| R
 
-  CA -->|"register · read rep · pay · feedback"| CH
-  WA -->|"register · read rep · deliver"| CH
+  B -->|"POST /infer + X-PAYMENT"| P
+  B -->|"resolve endpoint · read rep · pay · feedback"| CH
+  P -->|"register (endpoint in metadata) · verify payment"| CH
 
-  CH[("Avalanche Fuji<br/>ERC-8004 identity · reputation · validation<br/>x402 / USDC settlement")]
+  CH[("Avalanche Fuji<br/>ERC-8004 identity · reputation<br/>AVAX / USDC settlement")]
 
-  CA -. "LLM does the actual work" .-> LLM["OpenRouter / NVIDIA NIM"]
-  WA -. "LLM" .-> LLM
+  P -. "serves the inference" .-> LLM["NVIDIA NIM / OpenRouter"]
 ```
 
-- **Chain (Fuji)** — identity, reputation, escrow, settlement. Inherently global; every machine sees it.
-- **Relay** — agents *dial out* to a WebSocket hub, so two laptops behind NAT can still reach each other. The relay holds **no trust** — it can't forge identity, reputation, or payments. Swappable for libp2p.
-- **Agent** — a process that boots, registers, listens, and runs the job engine (it can be client and worker at once).
+- **Chain (Fuji)** — identity, the published endpoint, reputation, and payment settlement. Global; every machine sees it.
+- **Relay** — agents *dial out* to a WebSocket hub (NAT-safe) that also serves `GET /providers` over HTTP for the web. It holds **no trust** — only liveness.
+- **Provider** — a `drift` agent that, when booted with `--skills`, runs an x402-gated HTTP `/infer` server and advertises it.
 
 ---
 
 ## Quick start
 
-**Prerequisites:** Node 20+.
+**Prerequisites:** Node 20+. To transact you need a little **testnet AVAX** (and USDC for the gasless rail) from the [Avalanche Fuji faucet](https://core.app/tools/testnet-faucet/) — it's a real chain, nothing is mocked.
 
 ```bash
 cd apps/agent && npm install
 ```
 
-### Run the two-agent demo
-
-Each agent needs its own wallet key (its identity). Open three terminals:
+Open three terminals:
 
 ```bash
-# 1 — the rendezvous relay
-npm run dev -- relay --port 8787
-
-# 2 — a worker that offers an audit skill
-AGENT_PRIVATE_KEY=0x<key-b> npm run dev -- agent \
-  --name auditor --skills solidity-audit
-
-# 3 — a client that autonomously hires one
-AGENT_PRIVATE_KEY=0x<key-a> RELAY_URL=ws://localhost:8787 npm run dev -- agent \
-  --name specter --skills research \
-  --hire solidity-audit --brief "audit this contract at 0x…"
+npm run relay                                            # 1 — rendezvous hub (ws + /providers on :8787)
+npm run drift -- --name oracle --skills llm-inference    # 2 — a provider; then type `setup` then `register`
+npm run drift -- --name buyer                            # 3 — a buyer
 ```
 
-The client discovers the worker, negotiates, hires, and pays; the worker does the work (a real LLM call when a key is set) and gets paid. Watch both terminals.
+In the **provider** (terminal 2): `setup` to paste an OpenRouter (`sk-or-…`) or NVIDIA (`nvapi-…`) key, then `register` to mint its ERC-8004 identity (endpoint + price baked into the metadata).
 
-### Configuration (`.env.local` at the repo root, auto-loaded)
+In the **buyer** (terminal 3):
+
+```
+> providers                         # live providers, ranked by on-chain reputation
+> buy 1 explain proof of stake      # pays AVAX, unlocks the call, prints the result + Snowtrace tx
+```
+
+The buyer pays, the provider verifies on-chain and runs the LLM, and the buyer posts ERC-8004 feedback — watch both terminals, each step links to Snowtrace.
+
+### Web app
 
 ```bash
-AGENT_PRIVATE_KEY=        # the agent's wallet = its identity (fund from the Fuji faucet)
-RELAY_URL=ws://localhost:8787
-FUJI_RPC_URL=             # optional; defaults to the public endpoint
-OPENROUTER_API_KEY=       # or NVIDIA_API_KEY — the LLM that does the actual work
+cd apps/web && npm install && npm run dev   # http://localhost:3000
 ```
 
-Generate a throwaway key: `node -e "import('viem/accounts').then(m=>console.log(m.generatePrivateKey()))"`.
-Fund the agent's address with testnet AVAX (gas) and USDC (payments) from the [Avalanche Fuji faucet](https://core.app/tools/testnet-faucet/).
+Connect a wallet (Core / MetaMask) on Fuji → browse providers ranked by reputation → **Pay & run** (signs an AVAX tx in the wallet, unlocks the result, shows the Snowtrace link + posts feedback). Point it at a remote relay with `NEXT_PUBLIC_RELAY_HTTP`.
+
+### Optional env (`~/.drift/` is used by default; env only overrides)
+
+```bash
+AGENT_PRIVATE_KEY=0x…       # use a specific wallet instead of the auto-created one
+RELAY_URL=ws://host:8787    # remote relay (default ws://localhost:8787)
+FUJI_RPC_URL=               # custom Fuji RPC (defaults to the public endpoint)
+OPENROUTER_API_KEY=         # or NVIDIA_API_KEY — seeds the LLM instead of `setup`
+COMPUTE_PRICE_AVAX=0.001    # provider price per call (AVAX); COMPUTE_PRICE_USDC for the USDC rail
+COMPUTE_PUBLIC_URL=         # advertise a reachable URL instead of localhost (cross-machine)
+```
 
 ---
 
 ## CLI
 
 ```
-drift relay  [--port 8787]                         run the rendezvous hub
-drift agent  [--name <n>] [--skills <a,b>]          boot an agent (default command)
-             [--hire <skill>] [--brief <text>]      …and autonomously hire on boot
+drift relay  [--port 8787]                    run the rendezvous hub (ws + /providers)
+drift agent  [--name <n>] [--skills <a,b>]    boot an agent (default command);
+                                              --skills makes it a compute provider
 ```
 
-The agent boots with an animated preflight (identity, Fuji RPC, ERC-8004, x402, relay, LLM), then `listening on inbox…`. Its feed renders every step as a tool-call (`market.list`, `agent.message`, `market.deliver`); the pinned status bar shows `wallet · rep · jobs · peers`.
+At the `>` prompt:
+
+| Command | What it does |
+|---|---|
+| `providers` | live compute providers, **ranked by on-chain reputation** |
+| `buy <#\|url> <prompt>` | pay a provider (AVAX) and get the inference result + feedback |
+| `register` · `onchain` | mint my ERC-8004 identity · read it back from Fuji + explorer links |
+| `peers` · `skills` · `whoami` | agents online · what I serve · my address + balances |
+| `setup` | add / change my LLM key (OpenRouter or NVIDIA) |
+| `clear` · `quit` | clear screen · exit |
+| *natural language* | answered by my own LLM |
+
+The feed renders each step as a tool-call; the pinned status bar shows `wallet · id · buys · peers`.
 
 ---
 
 ## Status
 
-DRIFT is under active build. What's real today vs. what's landing next — stated honestly, because the whole point is verifiable trust:
+Stated honestly, because the whole point is verifiable trust:
 
 | Capability | Status |
 |---|---|
-| Immersive agent terminal (boot, feed, status bar) | ✅ built |
-| Cross-machine mesh (relay + A2A, NAT-safe, dial-out) | ✅ built |
-| Autonomous hire choreography (list → quote → hire → deliver → accept) | ✅ built |
-| Real work by the worker (LLM, with honest empty-state when offline) | ✅ built |
-| ERC-8004 register + reputation reads/writes on Fuji | 🔜 next (replaces *"rep / trust pending on-chain"*) |
-| x402 USDC escrow + settlement on Fuji | 🔜 next (replaces *"escrow / settle pending"*) |
-| Validator agent attesting on the Validation Registry before release | 🔜 planned |
-| Interactive typed goal (vs. the `--hire` flag) | 🔜 planned |
+| Immersive agent terminal + zero-config persisted wallet + `setup` | ✅ built |
+| Cross-machine mesh (relay + A2A, NAT-safe) + `GET /providers` for the web | ✅ built |
+| ERC-8004 register on Fuji, with **endpoint + price in the metadata** | ✅ built |
+| On-chain discovery + provider ranking by ERC-8004 **reputation** | ✅ built |
+| x402 `/infer` endpoint — **native AVAX** settlement (verified on-chain) | ✅ built |
+| x402 **USDC** settlement (EIP-3009, gasless for the payer) | ✅ built |
+| `giveFeedback` on-chain after each purchase (closes the trust loop) | ✅ built |
+| Web app — connect wallet, buy inference, Snowtrace links | ✅ built |
+| Validation Registry (independent attestation of work) | 🔜 planned |
 
-On-chain steps that aren't wired yet are labeled **"pending on-chain"** in the feed — never faked with a placeholder tx hash.
+Every settlement and feedback is a real Fuji transaction with a Snowtrace link — never a placeholder hash.
 
 ---
 
@@ -181,13 +195,15 @@ On-chain steps that aren't wired yet are labeled **"pending on-chain"** in the f
 
 **Runtime** · TypeScript · Node 20+ · ESM
 
-**Terminal** · [Ink](https://github.com/vadimdemedes/ink) (React for CLIs) · `commander`
+**Terminal** · raw ANSI (alt-screen + scroll region) · Node `readline` · `commander`
 
-**Chain** · [viem](https://viem.sh) · Avalanche Fuji (chain 43113) · ERC-8004 · x402 / USDC
+**Web** · Next.js (App Router) · React · **viem + injected wallet** (no wagmi)
 
-**Transport** · `ws` — WebSocket rendezvous relay (agents dial out)
+**Chain** · [viem](https://viem.sh) · Avalanche Fuji (43113) · ERC-8004 · x402 · USDC (EIP-3009)
 
-**Work** · `openai` SDK → OpenRouter (`sk-or-…`) or NVIDIA NIM (`nvapi-…`), auto-detected
+**Transport** · `ws` — WebSocket rendezvous relay (dial-out) + HTTP `/providers`
+
+**Inference** · `openai` SDK → OpenRouter (`sk-or-…`) or NVIDIA NIM (`nvapi-…`), auto-detected
 
 ---
 
@@ -195,39 +211,40 @@ On-chain steps that aren't wired yet are labeled **"pending on-chain"** in the f
 
 ```
 drift/
+├── drift                       # repo-root launcher → ./drift [agent|relay] …
 └── apps/
-    └── agent/                  # the DRIFT agent — npm CLI (bin: drift)
+    ├── agent/                   # the DRIFT agent — npm CLI (bin: drift)
+    │   └── src/
+    │       ├── cli.ts           # commander entry — `drift agent` · `drift relay`
+    │       ├── config.ts        # env: Fuji RPC, relay URL, optional LLM seeding
+    │       ├── store.ts         # ~/.drift: persisted wallet + LLM config + agentId
+    │       ├── llm.ts           # runtime-configurable OpenAI-compatible client
+    │       ├── chain/
+    │       │   ├── addresses.ts # Fuji ERC-8004 registries + USDC
+    │       │   ├── client.ts    # viem public/wallet clients + explorer links
+    │       │   └── registry.ts  # register · resolveProvider · reputation · feedback
+    │       ├── x402/            # payments: types · usdc · eip3009 · avax · client · server
+    │       ├── compute/
+    │       │   ├── server.ts    # the x402-gated /infer endpoint (provider)
+    │       │   └── buy.ts       # the buyer: 402 → pay → unlock
+    │       ├── a2a/             # A2A wire protocol + dial-out client
+    │       ├── relay/server.ts  # rendezvous hub (ws + GET /providers; holds no trust)
+    │       └── cli/             # screen.ts · ui.ts · run.ts (boot, mesh, REPL)
+    └── web/                     # Next.js marketplace UI (@drift/web)
         └── src/
-            ├── cli.tsx         # commander entry — `drift agent` · `drift relay`
-            ├── config.ts       # env: Fuji RPC, wallet key, relay URL, LLM keys
-            ├── identity.ts     # wallet → address; LLM provider/model resolution
-            ├── theme.ts        # color tokens (dark periwinkle; swappable)
-            ├── llm.ts          # OpenAI-compatible client for the actual work
-            ├── chain/
-            │   └── addresses.ts# Fuji ERC-8004 registries + USDC
-            ├── a2a/
-            │   ├── types.ts    # A2A wire protocol
-            │   └── client.ts   # dial-out client, auto-reconnect, presence
-            ├── relay/
-            │   └── server.ts   # the rendezvous hub (holds no trust)
-            ├── jobs/
-            │   ├── protocol.ts # job lifecycle messages
-            │   └── engine.ts   # both roles: client hire() + worker auto-responder
-            └── ui/
-                └── App.tsx      # the terminal: boot, feed, status bar
+            ├── app/page.tsx     # browse providers · buy inference · Snowtrace links
+            └── lib/             # market.ts (discover + pay) · chain.ts (rep + feedback)
 ```
 
-> **Legacy.** The previous DRIFT was a Bybit quant-trading product (`apps/trader`, Python/FastAPI; `apps/web`, Next.js; `contracts/`, a Mantle risk guard). Those directories are deprecated and slated for removal now that the project has pivoted to the Avalanche agent marketplace.
+> The repo is a focused two-app workspace (`apps/agent` + `apps/web`). An earlier Bybit quant-trading product (Python engine + a different web app + a Mantle contract) was removed when the project pivoted to the Avalanche compute marketplace; it lives in git history if ever needed.
 
 ---
 
-## Why trust without humans matters
+## Why on-chain trust matters here
 
-Three properties make the trust autonomous and verifiable:
-
-- **Identity is portable and on-chain.** An agent is its wallet + ERC-8004 registration — not an account on someone's server. Other agents resolve it directly.
-- **Reputation is earned, not asserted.** Feedback is posted on-chain after real jobs; selection reads it. A new agent with no history is treated like one — and a Validator can vouch for its work.
-- **Payment is settled, not promised.** Escrow locks before work starts and releases on acceptance, machine-to-machine over x402. No invoice, no chargeback, no human approval.
+- **Identity + endpoint are on-chain.** A provider is its wallet + ERC-8004 registration; the endpoint to call it lives in that registration, not on a directory someone controls. Buyers resolve it directly.
+- **Reputation is earned, not asserted.** Feedback is posted on-chain after real, paid calls; discovery ranks by it. A brand-new provider with no history is shown as exactly that.
+- **Payment is settled, not promised.** The buyer pays on Avalanche before the result is served; the provider verifies the transfer on-chain. One HTTP round-trip, no invoice, no human approval.
 
 > Testnet only. Identities and balances on Fuji are not real funds.
 

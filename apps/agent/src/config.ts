@@ -19,27 +19,14 @@ export const config = {
   // Avalanche Fuji
   rpcUrl: process.env.FUJI_RPC_URL || "https://api.avax-test.network/ext/bc/C/rpc",
 
-  // The agent's wallet = its on-chain identity. Accepts AGENT_PRIVATE_KEY or the
-  // existing ETH_PRIVATE_KEY from .env.local.
-  privateKey: (process.env.AGENT_PRIVATE_KEY || process.env.ETH_PRIVATE_KEY || "") as
-    | `0x${string}`
-    | "",
-
   // A2A transport: a thin WebSocket rendezvous relay every agent dials out to, so
   // agents on different machines (incl. behind NAT) can reach each other.
   relayUrl: process.env.RELAY_URL || "ws://localhost:8787",
 
-  // LLM for the agent loop (OpenAI-compatible). OpenRouter or NVIDIA NIM.
+  // Optional LLM seeding from env (otherwise set it in-app with `setup`, persisted
+  // to ~/.drift/llm.json). OpenRouter or NVIDIA NIM, OpenAI-compatible.
   openrouterKey: process.env.OPENROUTER_API_KEY || "",
   nvidiaKey: process.env.NVIDIA_API_KEY || process.env.LLM_API_KEY || "",
   llmBaseUrl: process.env.LLM_BASE_URL || "",
   llmModel: process.env.LLM_MODEL || "",
 } as const;
-
-export function hasWallet(): boolean {
-  return /^0x[0-9a-fA-F]{64}$/.test(config.privateKey);
-}
-
-export function llmEnabled(): boolean {
-  return Boolean(config.openrouterKey || config.nvidiaKey);
-}

@@ -1,24 +1,55 @@
-// OpenAI-compatible LLM client for the agent's actual work. OpenRouter or NVIDIA
-// NIM, picked from whichever key is set (see identity.llmMeta). Returns null when
-// no key is configured — callers fall back to an honest empty state (no fabricated
-// output).
+// OpenAI-compatible LLM client for the agent's actual work + conversational loop.
+// Runtime-configurable: `setup` (or env, or ~/.drift/llm.json) sets the provider
+// and key live. Returns null when unconfigured — callers fall back to an honest
+// empty state (no fabricated output).
 import OpenAI from "openai";
 import { config } from "./config.js";
-import { llmMeta } from "./identity.js";
+import type { Provider } from "./store.js";
 
-const BASE_URL: Record<string, string> = {
+const DEFAULT_MODEL: Record<Provider, string> = {
+  openrouter: "anthropic/claude-3.5-sonnet",
+  nvidia: "nvidia/nemotron-3-super-120b-a12b",
+};
+const BASE_URL: Record<Provider, string> = {
   openrouter: "https://openrouter.ai/api/v1",
   nvidia: "https://integrate.api.nvidia.com/v1",
 };
 
-export async function complete(system: string, user: string): Promise<string | null> {
-  const meta = llmMeta();
-  if (!meta) return null;
-  const apiKey = config.openrouterKey || config.nvidiaKey;
-  const baseURL = config.llmBaseUrl || BASE_URL[meta.provider];
-  const client = new OpenAI({ apiKey, baseURL });
+let current: { provider: Provider; apiKey: string; model: string } | null = null;
+
+// nvapi-… → NVIDIA; anything else (incl. sk-or-…) → OpenRouter.
+export function detectProvider(key: string): Provider {
+  return key.startsWith("nvapi-") ? "nvidia" : "openrouter";
+}
+
+export function setLlm(provider: Provider, apiKey: string, model?: string): void {
+  current = { provider, apiKey, model: model || config.llmModel || DEFAULT_MODEL[provider] };
+}
+
+export function llmEnabled(): boolean {
+  return current !== null;
+}
+
+export function llmMeta(): { provider: Provider; model: string } | null {
+  return current ? { provider: current.provider, model: current.model } : null;
+}
+
+export function defaultModel(provider: Provider): string {
+  return config.llmModel || DEFAULT_MODEL[provider];
+}
+
+// Seed from env on import (OpenRouter wins if both set). `setup`/store override later.
+if (config.openrouterKey) setLlm("openrouter", config.openrouterKey);
+else if (config.nvidiaKey) setLlm("nvidia", config.nvidiaKey);
+
+export async function complete(system: string, user: string, model?: string): Promise<string | null> {
+  if (!current) return null;
+  const client = new OpenAI({
+    apiKey: current.apiKey,
+    baseURL: config.llmBaseUrl || BASE_URL[current.provider],
+  });
   const r = await client.chat.completions.create({
-    model: meta.model,
+    model: model || current.model,
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
