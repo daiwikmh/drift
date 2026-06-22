@@ -2,15 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Container } from "./Container";
 import { site } from "@/lib/site";
 
 function Logo() {
   return (
     <span className="flex items-center gap-2">
-      <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#9aa8f0] text-[13px] font-black text-[#14152b]">
-        D
-      </span>
+      <Image src="/logo.png" alt="DRIFT" width={28} height={28} priority className="h-7 w-7 object-contain" />
       <span className="text-[17px] font-semibold tracking-tight">DRIFT</span>
     </span>
   );

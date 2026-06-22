@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { RELAY_HTTP } from "@/lib/market";
 
@@ -76,9 +77,7 @@ export function Sidebar() {
     >
       <div className={`flex items-center py-4 ${collapsed ? "justify-center px-0" : "px-5"}`}>
         <Link href="/" className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#9aa8f0] text-[13px] font-black text-[#14152b]">
-            D
-          </span>
+          <Image src="/logo.png" alt="DRIFT" width={28} height={28} className="h-7 w-7 object-contain" />
           {!collapsed && <span className="text-sm font-semibold tracking-tight">DRIFT</span>}
         </Link>
       </div>

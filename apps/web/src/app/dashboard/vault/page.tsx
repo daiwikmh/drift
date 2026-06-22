@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { buyInference, EXPLORER, listProviders, type AllocationPayload, type Provider } from "@/lib/market";
+import { buyInference, EXPLORER, listProviders, type AllocationPayload, type Provider, type VaultPick } from "@/lib/market";
+import { aaveUsdcPosition, depositAaveUSDC, isExecutable, MAINNET_EXPLORER } from "@/lib/deposit";
 import { useWallet } from "@/components/dashboard/WalletContext";
 import { Card, Stat, btnPrimary, btnGhost, fieldCls, microLabel } from "@/components/dashboard/ui";
 
@@ -20,6 +21,32 @@ export default function Vaultometer() {
   const [usedAgent, setUsedAgent] = useState<Provider | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [auto, setAuto] = useState(false);
+  const [depBusy, setDepBusy] = useState<string | null>(null);
+  const [depTx, setDepTx] = useState<Record<string, `0x${string}`>>({});
+  const [depErr, setDepErr] = useState<string | null>(null);
+  const [position, setPosition] = useState<number | null>(null);
+
+  const refreshPosition = useCallback(() => {
+    if (account) aaveUsdcPosition(account).then(setPosition).catch(() => {});
+  }, [account]);
+  useEffect(() => {
+    refreshPosition();
+  }, [refreshPosition]);
+
+  const deposit = async (it: VaultPick) => {
+    if (!account) return;
+    setDepBusy(it.pool);
+    setDepErr(null);
+    try {
+      const tx = await depositAaveUSDC(account, it.usd);
+      setDepTx((m) => ({ ...m, [it.pool]: tx }));
+      refreshPosition();
+    } catch (e) {
+      setDepErr((e as Error).message.split("\n")[0]);
+    } finally {
+      setDepBusy(null);
+    }
+  };
 
   const loadAgents = useCallback(async () => {
     const all = await listProviders().catch(() => [] as Provider[]);
@@ -139,14 +166,25 @@ export default function Vaultometer() {
                   <span className="w-12 text-right text-[12px] tabular-nums text-white/60">{it.allocationPct}%</span>
                   <span className="w-24 text-right text-[12px] tabular-nums text-emerald-400">{it.apy}% APY</span>
                   <span className="w-20 text-right text-[12px] tabular-nums text-white/45">${it.usd.toLocaleString()}</span>
-                  <a
-                    className="w-16 text-right text-[12px] text-[#9aa8f0] hover:underline"
-                    href={`https://defillama.com/yields/pool/${it.pool}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    deposit ↗
-                  </a>
+                  <div className="w-28 text-right">
+                    {depTx[it.pool] ? (
+                      <a className="text-[12px] text-emerald-400 hover:underline" href={`${MAINNET_EXPLORER}/tx/${depTx[it.pool]}`} target="_blank" rel="noreferrer">
+                        ✓ deposited ↗
+                      </a>
+                    ) : isExecutable(it) ? (
+                      <button
+                        onClick={() => deposit(it)}
+                        disabled={depBusy !== null}
+                        className="rounded-md bg-[#9aa8f0] px-2.5 py-1 text-[12px] font-medium text-[#14152b] transition hover:bg-[#aeb9f4] disabled:opacity-40"
+                      >
+                        {depBusy === it.pool ? "Depositing…" : `Deposit $${it.usd.toLocaleString()}`}
+                      </button>
+                    ) : (
+                      <a className="text-[12px] text-[#9aa8f0] hover:underline" href={`https://defillama.com/yields/pool/${it.pool}`} target="_blank" rel="noreferrer">
+                        deposit ↗
+                      </a>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -166,9 +204,17 @@ export default function Vaultometer() {
             </div>
           </Card>
 
-          <p className="mt-4 text-[12px] text-white/35">
-            Capital is deployed into these audited protocols directly — DRIFT never custodies it. “deposit ↗” opens each vault to execute on Avalanche.
-          </p>
+          {depErr && <div className="mt-4 text-[13px] text-[#e84142]">⚠ {depErr}</div>}
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-white/40">
+            <span>
+              <b className="text-white/60">Deposit</b> executes a <b className="text-[#e84142]">real Avalanche mainnet</b> tx into Aave V3 (USDC) — you sign,
+              custody stays with Aave. Other vaults open via “deposit ↗”.
+            </span>
+            {position !== null && position > 0 && (
+              <span className="text-emerald-400">your Aave USDC position: ${position.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+            )}
+          </div>
         </>
       )}
 
