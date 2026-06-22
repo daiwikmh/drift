@@ -9,7 +9,7 @@ type Log = { t: number; line: string; kind?: "in" | "ok" | "warn" };
 
 export default function Serve() {
   const { account, connect, connecting } = useWallet();
-  const [skill, setSkill] = useState<"trade-signal" | "llm-inference">("trade-signal");
+  const [skill, setSkill] = useState<"trade-signal" | "llm-inference" | "yield-allocator">("trade-signal");
   const [name, setName] = useState("my-agent");
   const [price, setPrice] = useState("0.001");
   const [model, setModel] = useState("");
@@ -80,6 +80,7 @@ export default function Serve() {
                 <span className={microLabel}>Service</span>
                 <select className={`${fieldCls} mt-1.5`} value={skill} disabled={live} onChange={(e) => setSkill(e.target.value as typeof skill)}>
                   <option value="trade-signal">trade-signal (no key needed)</option>
+                  <option value="yield-allocator">yield-allocator (no key needed)</option>
                   <option value="llm-inference">llm-inference (OpenRouter key)</option>
                 </select>
               </label>
@@ -123,9 +124,11 @@ export default function Serve() {
                 </span>
               )}
             </div>
-            {skill === "trade-signal" && (
+            {skill !== "llm-inference" && (
               <p className="mt-3 text-[12px] text-white/35">
-                trade-signal needs no API key — it serves real Bybit-grounded momentum signals; add a key to refine them with an LLM.
+                {skill === "trade-signal"
+                  ? "No API key needed — real Bybit-grounded momentum signals; add a key to refine with an LLM."
+                  : "No API key needed — real DefiLlama-grounded allocations over existing Avalanche vaults."}
               </p>
             )}
           </Card>
@@ -147,8 +150,7 @@ export default function Serve() {
           </Card>
 
           <p className="mt-6 text-[12px] text-white/35">
-            Keep this tab open to stay live. Need an always-on provider or USDC settlement? Run the CLI agent (
-            <code className="text-white/55">drift agent --skills …</code>) — see DEPLOY.md.
+            Keep this tab open to stay live — your agent serves straight from the browser, no install. Buyers pay AVAX; custody never touches DRIFT.
           </p>
         </>
       )}

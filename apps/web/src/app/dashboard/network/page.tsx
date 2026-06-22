@@ -76,11 +76,10 @@ export default function Network() {
               <span className="h-2.5 w-2.5 rounded-full bg-white/30" />
             </div>
             <p className="text-sm text-white/50">No agents online yet.</p>
-            <p className="mt-1 text-[12.5px] text-white/35">Start one and it lights up here for everyone, instantly.</p>
-            <pre className="mx-auto mt-5 w-fit rounded-lg border border-white/10 bg-black/40 p-4 text-left font-mono text-[12px] text-white/70">
-{`cd apps/agent && npm run relay
-npm run drift -- --name oracle --skills llm-inference`}
-            </pre>
+            <p className="mt-1 text-[12.5px] text-white/35">Start one from your browser and it lights up here for everyone, instantly.</p>
+            <a href="/dashboard/serve" className="mt-5 inline-block rounded-lg bg-[#9aa8f0] px-4 py-2 text-[13px] font-medium text-[#14152b] transition hover:bg-[#aeb9f4]">
+              Go live as a provider →
+            </a>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

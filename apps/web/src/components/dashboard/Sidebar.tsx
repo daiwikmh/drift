@@ -5,6 +5,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { RELAY_HTTP } from "@/lib/market";
+import { NETWORKS } from "@/lib/network";
+import { useNetwork } from "./NetworkContext";
 
 const nav = [
   { label: "Live network", href: "/dashboard/network", icon: "radio" },
@@ -42,6 +44,7 @@ function Icon({ name }: { name: string }) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { net, cfg, setNet } = useNetwork();
   const [collapsed, setCollapsed] = useState(false);
   const [online, setOnline] = useState<boolean | null>(null);
 
@@ -80,6 +83,39 @@ export function Sidebar() {
           <Image src="/logo.png" alt="DRIFT" width={28} height={28} className="h-7 w-7 object-contain" />
           {!collapsed && <span className="text-sm font-semibold tracking-tight">DRIFT</span>}
         </Link>
+      </div>
+
+      {/* network toggle */}
+      <div className={`pt-2 ${collapsed ? "px-2" : "px-4"}`}>
+        {collapsed ? (
+          <button
+            onClick={() => setNet(net === "testnet" ? "mainnet" : "testnet")}
+            title={`${cfg.label} — click to switch`}
+            className={`mx-auto flex h-7 w-7 items-center justify-center rounded-lg border text-[11px] font-bold ${
+              net === "mainnet" ? "border-[#e84142]/50 text-[#e84142]" : "border-emerald-400/40 text-emerald-400"
+            }`}
+          >
+            {net === "mainnet" ? "M" : "T"}
+          </button>
+        ) : (
+          <div className="flex rounded-lg border border-white/10 bg-white/[0.03] p-0.5 text-[12px]">
+            {(["testnet", "mainnet"] as const).map((n) => (
+              <button
+                key={n}
+                onClick={() => setNet(n)}
+                className={`flex-1 rounded-md px-2 py-1 font-medium transition ${
+                  net === n
+                    ? n === "mainnet"
+                      ? "bg-[#e84142]/15 text-[#e84142]"
+                      : "bg-emerald-400/15 text-emerald-400"
+                    : "text-white/40 hover:text-white/70"
+                }`}
+              >
+                {NETWORKS[n].label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={`pb-3 pt-2 ${collapsed ? "flex justify-center px-2" : "px-5"}`}>

@@ -60,7 +60,7 @@ export default function Vaultometer() {
     if (!account) return;
     const agent = agents[0]; // ranked by reputation already
     if (!agent) {
-      setError("No yield-allocator agent online. Start one: drift agent --skills yield-allocator");
+      setError("No yield-allocator agent online — open “Go live” to start one in your browser (no install).");
       return;
     }
     setBusy(true);
@@ -96,9 +96,15 @@ export default function Vaultometer() {
             marketplace agent, ranked by reputation. No custom vault, no custody by us.
           </p>
         </div>
-        <span className={`rounded-full border px-3 py-1.5 text-[12px] ${agents.length ? "border-emerald-400/30 text-emerald-400" : "border-white/10 text-white/40"}`}>
-          {agents.length} yield agent{agents.length === 1 ? "" : "s"} online
-        </span>
+        {agents.length ? (
+          <span className="rounded-full border border-emerald-400/30 px-3 py-1.5 text-[12px] text-emerald-400">
+            {agents.length} yield agent{agents.length === 1 ? "" : "s"} online
+          </span>
+        ) : (
+          <a href="/dashboard/serve" className="rounded-full border border-[#9aa8f0]/40 px-3 py-1.5 text-[12px] text-[#9aa8f0] transition hover:bg-[#9aa8f0]/10">
+            no yield agents — Go live →
+          </a>
+        )}
       </div>
 
       {/* controls */}

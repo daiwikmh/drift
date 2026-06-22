@@ -74,11 +74,16 @@ export function startRelay(port: number): WebSocketServer {
       return;
     }
 
+    // Root / health → 200 so platform health checks (Railway) keep the service up.
+    if (req.method === "GET" && (req.url === "/" || req.url?.startsWith("/health"))) {
+      return sendJson(res, 200, { ok: true, service: "drift-relay", providers: peerList().filter((p) => p.skills.length).length });
+    }
+
     res.statusCode = 404;
     res.end("drift relay");
   });
 
-  http.listen(port);
+  http.listen(port, "0.0.0.0");
   const wss = new WebSocketServer({ server: http });
 
   const send = (ws: WebSocket, msg: ServerMsg) => {

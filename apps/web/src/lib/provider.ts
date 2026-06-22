@@ -7,13 +7,14 @@ import { createPublicClient, http, parseEther } from "viem";
 import { avalancheFuji } from "viem/chains";
 import { RELAY_HTTP, RELAY_WS } from "./market";
 import { generateSignal } from "./signals";
+import { generateAllocation } from "./yield";
 
 const publicClient = createPublicClient({ chain: avalancheFuji, transport: http("https://api.avax-test.network/ext/bc/C/rpc") });
 
 export type ProviderConfig = {
   account: `0x${string}`;
   name: string;
-  skill: "trade-signal" | "llm-inference";
+  skill: "trade-signal" | "llm-inference" | "yield-allocator";
   priceAvax: number;
   model?: string;
   openrouterKey?: string;
@@ -77,7 +78,7 @@ export function startProvider(cfg: ProviderConfig, hooks: Hooks): { stop: () => 
           name: cfg.name,
           skills: [cfg.skill],
           priceAvax: cfg.priceAvax,
-          model: cfg.model || (cfg.skill === "trade-signal" ? "bybit + rule" : "openrouter"),
+          model: cfg.model || (cfg.skill === "llm-inference" ? "openrouter" : cfg.skill === "yield-allocator" ? "defillama" : "bybit + rule"),
         })
       );
       hooks.onStatus("live");
@@ -136,6 +137,13 @@ export function startProvider(cfg: ProviderConfig, hooks: Hooks): { stop: () => 
           hooks.onLog(`✓ signal · ${s.direction.toUpperCase()} ${s.symbol} · +${cfg.priceAvax} AVAX`, "ok");
           hooks.onServed();
           return reply(200, { result: s.rationale, signal: { ...s, provider: cfg.account }, txHash, paidWith: "avax-native" }, paymentResponse);
+        }
+
+        if (cfg.skill === "yield-allocator") {
+          const a = await generateAllocation(prompt, llm);
+          hooks.onLog(`✓ yield plan · ${a.risk} · ${a.blendedApy}% blended · +${cfg.priceAvax} AVAX`, "ok");
+          hooks.onServed();
+          return reply(200, { result: a.rationale, allocation: { ...a, provider: cfg.account }, txHash, paidWith: "avax-native" }, paymentResponse);
         }
 
         if (!cfg.openrouterKey) return reply(503, { error: "provider has no LLM key" });

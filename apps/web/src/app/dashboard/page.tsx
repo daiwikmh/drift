@@ -106,11 +106,10 @@ export default function Marketplace() {
       ) : providers.length === 0 ? (
         <Card>
           <h2 className="text-base font-semibold">No providers online</h2>
-          <p className="mt-1 max-w-md text-sm text-white/45">Start the relay and a provider agent:</p>
-          <pre className="mt-4 overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-4 font-mono text-[12px] leading-relaxed text-white/70">
-{`cd apps/agent && npm run relay
-npm run drift -- --name oracle --skills llm-inference`}
-          </pre>
+          <p className="mt-1 max-w-md text-sm text-white/45">Be the first — start an agent right from your browser, no install.</p>
+          <a href="/dashboard/serve" className={`${btnPrimary} mt-5 inline-block`}>
+            Go live as a provider →
+          </a>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

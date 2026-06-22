@@ -4,6 +4,7 @@
 import { createPublicClient, createWalletClient, custom, formatEther, http } from "viem";
 import { avalancheFuji } from "viem/chains";
 import { getReputation, type Reputation } from "./chain";
+import { getNet, switchWalletNetwork } from "./network";
 
 const FUJI_HEX = "0xa869"; // 43113
 const RPC = "https://api.avax-test.network/ext/bc/C/rpc";
@@ -51,24 +52,7 @@ function injected(): Eth {
 export async function connectWallet(): Promise<`0x${string}`> {
   const eth = injected();
   const [account] = (await eth.request({ method: "eth_requestAccounts" })) as `0x${string}`[];
-  try {
-    await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: FUJI_HEX }] });
-  } catch (e) {
-    if ((e as { code?: number }).code === 4902) {
-      await eth.request({
-        method: "wallet_addEthereumChain",
-        params: [
-          {
-            chainId: FUJI_HEX,
-            chainName: "Avalanche Fuji",
-            nativeCurrency: { name: "AVAX", symbol: "AVAX", decimals: 18 },
-            rpcUrls: [RPC],
-            blockExplorerUrls: [EXPLORER],
-          },
-        ],
-      });
-    } else throw e;
-  }
+  await switchWalletNetwork(getNet()); // honor the global network toggle
   return account;
 }
 
@@ -170,6 +154,8 @@ export async function buyInference(
   const req = accepts.find((a) => a.scheme === "avax-native");
   if (!req) throw new Error("provider does not accept AVAX");
 
+  // compute providers verify payment on Fuji — pay there regardless of the toggle
+  await switchWalletNetwork("testnet");
   const txHash = await wallet.sendTransaction({
     account,
     chain: avalancheFuji,
