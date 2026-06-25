@@ -45,14 +45,34 @@ export function buildAvaxRequirement(opts: {
   };
 }
 
-// Replay guard: a tx hash may unlock exactly one request per server lifetime.
-const consumed = new Set<string>();
+// Replay guard: a tx hash may unlock exactly one request. The default is an
+// in-memory set (a single server lifetime); pass a persistent guard (see
+// store.makeReplayGuard) so a paid tx can't be replayed across restarts.
+export interface ReplayGuard {
+  has(txHash: string): Promise<boolean>;
+  add(txHash: string): Promise<void>;
+}
+
+function memGuard(): ReplayGuard {
+  const consumed = new Set<string>();
+  return {
+    async has(t) {
+      return consumed.has(t.toLowerCase());
+    },
+    async add(t) {
+      consumed.add(t.toLowerCase());
+    },
+  };
+}
+
+const defaultGuard = memGuard();
 
 export async function verifyAvaxPayment(
   txHash: `0x${string}`,
-  req: AvaxRequirements
+  req: AvaxRequirements,
+  guard: ReplayGuard = defaultGuard
 ): Promise<{ ok: boolean; payer?: `0x${string}`; error?: string }> {
-  if (consumed.has(txHash.toLowerCase())) return { ok: false, error: "payment already used" };
+  if (await guard.has(txHash)) return { ok: false, error: "payment already used" };
   let tx;
   try {
     tx = await publicClient.getTransaction({ hash: txHash });
@@ -63,7 +83,7 @@ export async function verifyAvaxPayment(
   if (tx.value < BigInt(req.maxAmountRequired)) return { ok: false, error: "underpaid" };
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") return { ok: false, error: "tx not confirmed" };
-  consumed.add(txHash.toLowerCase());
+  await guard.add(txHash);
   return { ok: true, payer: tx.from };
 }
 

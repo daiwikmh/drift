@@ -117,8 +117,13 @@ export async function generateAllocation(brief: string): Promise<Allocation> {
         "You are a DeFi yield strategist. In <=240 chars, justify this allocation using ONLY the given real APY/TVL numbers. No new numbers, no hype.",
         facts
       );
-      if (out?.trim()) {
-        rationale = out.trim().slice(0, 240);
+      const clean = out?.trim() ?? "";
+      // Reasoning models (e.g. nemotron) can leak their scratchpad into content.
+      // Only adopt the LLM line if it reads like a real justification — cites a
+      // number and isn't an internal monologue — else keep the deterministic one.
+      const looksReal = /\d/.test(clean) && !/^(we need|let me|okay|first,|the user|i should|probably)/i.test(clean);
+      if (clean && looksReal) {
+        rationale = clean.slice(0, 240);
         const { llmMeta } = await import("../llm.js");
         model = llmMeta()?.model ?? null;
       }

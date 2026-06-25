@@ -2,7 +2,7 @@
 
 # DRIFT
 
-### An agent compute marketplace on Avalanche — buy and sell LLM inference, settled on-chain, no human in the loop.
+### An agent marketplace on Avalanche — agents buy LLM inference and hire each other for validated jobs, settled on-chain, no human in the loop.
 
 *A provider agent puts an LLM behind a paywalled API. A buyer discovers it, ranks candidates by **on-chain reputation**, pays **native AVAX** (or gasless USDC) to unlock the call, gets the result, and posts feedback on-chain. Identity and reputation live on **ERC-8004**; payment is an **x402** HTTP 402 flow. No person approves the provider, the price, or the payment.*
 
@@ -50,6 +50,27 @@ No human approved the provider, the price, or the payment. The settlement and th
 
 ---
 
+## Hiring an agent — validator-gated jobs
+
+Beyond instant pay-per-call, an agent can **hire** another agent for a task and pay **only when an independent validator attests the work**. This is the "trust without humans" core: a third agent — discovered and ranked the same way — judges the result, and a payment is released against a signature the buyer verifies, not a person's approval.
+
+```
+BUYER (cli `hire`)            WORKER (--skills <skill>)        VALIDATOR (--skills validator)
+● hire <skill> <brief> ─────▶ does the work
+                              ◀── delivers result (UNPAID) ──
+● forwards result ───────────────────────────────────────────▶ judges independently
+                              ◀──────── signed attestation ───  verdict + score, signed
+● verifies the signature maps to the validator's on-chain ERC-8004 identity
+● PASS → pays the worker (x402 AVAX) + giveFeedback anchored to the attestation
+● FAIL → pays nothing
+```
+
+The flow is **optimistic**: the worker delivers **before** it's paid (so it carries the deadbeat-buyer risk) and there is **no escrow contract**. Because reputation is written only when an independent validator signs off — and the buyer checks that signature against the validator's on-chain identity — a provider **can't pad its own score**, and the attestation hash is written into the feedback so the rating is provably backed by a real validation. Validators earn reputation too, so honest validation is itself a paid, ranked service.
+
+> The validator's check is real: a `trade-signal` is verified against the **live market quote** (a fabricated entry price fails); other work is scored by an impartial LLM judge. A `fail` releases no funds.
+
+---
+
 ## On-chain primitives
 
 DRIFT is built on two standards, both live on Avalanche Fuji:
@@ -60,7 +81,9 @@ We register **against the canonical registries** — no custom contract to deplo
 | Registry | Fuji address | Role |
 |---|---|---|
 | Identity | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | each agent = an on-chain identity; metadata holds name, skills, **endpoint, price** |
-| Reputation | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | `giveFeedback` after every buy → the score that **ranks providers** |
+| Reputation | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | `giveFeedback` → the score that **ranks providers**; for hired jobs the call is **anchored to the validator's attestation** (its ref + the work hash go into the feedback) |
+
+> **Validation Registry:** the third ERC-8004 registry is **not deployed on Avalanche** (the canonical set ships only Identity + Reputation here). DRIFT fills the gap **without a contract**: the validator signs an attestation and the buyer verifies that signature resolves to the validator's on-chain Identity (`ownerOf`) before paying — an off-chain attestation with an on-chain root of trust.
 
 ### x402 — agent-native payments (two rails)
 A buyer's unpaid `POST /infer/<addr>` (to the relay) returns **HTTP 402** advertising how to pay; it retries with an `X-PAYMENT` header. Two schemes:
@@ -174,6 +197,8 @@ At the `>` prompt:
 |---|---|
 | `providers` | live compute providers, **ranked by on-chain reputation** |
 | `buy <#\|url> <prompt>` | pay a provider (AVAX) and get the inference result + feedback |
+| `hire <skill> <brief>` | delegate a job — a worker delivers, an independent validator attests, you pay **on PASS** |
+| `jobs` | jobs you've started + their status |
 | `register` · `onchain` | mint my ERC-8004 identity · read it back from Fuji + explorer links |
 | `peers` · `skills` · `whoami` | agents online · what I serve · my address + balances |
 | `setup` | add / change my LLM key (OpenRouter or NVIDIA) |
@@ -195,12 +220,15 @@ Stated honestly, because the whole point is verifiable trust:
 | **Relay-proxied inference** (`POST /infer/<addr>` over WS — providers need no public URL) | ✅ built |
 | ERC-8004 register on Fuji, with **endpoint + price in the metadata** | ✅ built |
 | On-chain discovery + provider ranking by ERC-8004 **reputation** | ✅ built |
-| x402 inference — **native AVAX** settlement (verified on-chain) | ✅ built |
+| x402 inference — **native AVAX** settlement (verified on-chain) + **persistent replay guard** (a paid tx can't be replayed across restarts) | ✅ built |
 | x402 **USDC** settlement (EIP-3009, gasless for the payer) | ✅ built |
-| `giveFeedback` on-chain after each purchase (closes the trust loop) | ✅ built |
+| `giveFeedback` on-chain after each purchase; for hired jobs **anchored to the validator's attestation** | ✅ built |
+| **Agent-to-agent validated jobs** — `hire` → deliver → independent validation → pay on PASS, no human | ✅ built |
+| **Independent validator** — signs an attestation verified against its on-chain ERC-8004 identity (gates the payment) | ✅ built |
 | Web app — landing + dashboard (buy, **register identity**, balances), Snowtrace links | ✅ built |
 | Deploy: Railway relay + Vercel web ([DEPLOY.md](./DEPLOY.md)) | ✅ built |
-| Validation Registry (independent attestation of work) | 🔜 planned |
+| ERC-8004 Validation Registry — **not deployed on Avalanche**; substituted by signed attestations vs on-chain identity | ⚠️ n/a on-chain |
+| `hire` / `jobs` exposed in the **web** dashboard (currently CLI-only) | 🔜 planned |
 
 Every settlement and feedback is a real Fuji transaction with a Snowtrace link — never a placeholder hash.
 
@@ -232,7 +260,7 @@ drift/
     │   └── src/
     │       ├── cli.ts           # commander entry — `drift agent` · `drift relay`
     │       ├── config.ts        # env: Fuji RPC, relay URL, optional LLM seeding
-    │       ├── store.ts         # ~/.drift: persisted wallet + LLM config + agentId
+    │       ├── store.ts         # ~/.drift: persisted wallet + LLM config + agentId + replay guard
     │       ├── llm.ts           # runtime-configurable OpenAI-compatible client
     │       ├── chain/
     │       │   ├── addresses.ts # Fuji ERC-8004 registries + USDC
@@ -241,7 +269,9 @@ drift/
     │       ├── x402/            # payments: types · usdc · eip3009 · avax · client · server
     │       ├── compute/
     │       │   ├── server.ts    # the x402-gated /infer endpoint (provider)
-    │       │   └── buy.ts       # the buyer: 402 → pay → unlock
+    │       │   ├── buy.ts       # the buyer: 402 → pay → unlock
+    │       │   └── validator.ts # independent judge + signed attestation (verified vs identity)
+    │       ├── jobs/            # validator-gated hire flow: protocol.ts + engine.ts (buyer/worker/validator)
     │       ├── a2a/             # A2A wire protocol + dial-out client
     │       ├── relay/server.ts  # rendezvous hub (ws + GET /providers; holds no trust)
     │       └── cli/             # screen.ts · ui.ts · run.ts (boot, mesh, REPL)

@@ -122,3 +122,38 @@ export async function saveSignals(address: string, list: SignalRecord[]): Promis
   await mkdir(DRIFT_DIR, { recursive: true });
   await writeFile(signalsFile(address), JSON.stringify(list, null, 2), { mode: 0o600 });
 }
+
+// Persistent replay guard for the native-AVAX rail: a payment tx hash may unlock
+// exactly one request, EVER — surviving restarts (an in-memory set would let an
+// attacker replay a paid tx after the provider reboots). Kept per provider address.
+const consumedFile = (address: string) => join(DRIFT_DIR, `consumed-${address.toLowerCase()}.json`);
+
+export interface ReplayGuard {
+  has(txHash: string): Promise<boolean>;
+  add(txHash: string): Promise<void>;
+}
+
+export function makeReplayGuard(address: string): ReplayGuard {
+  const file = consumedFile(address);
+  let cache: Set<string> | null = null;
+  const load = async (): Promise<Set<string>> => {
+    if (cache) return cache;
+    try {
+      cache = new Set(JSON.parse(await readFile(file, "utf8")) as string[]);
+    } catch {
+      cache = new Set();
+    }
+    return cache;
+  };
+  return {
+    async has(txHash) {
+      return (await load()).has(txHash.toLowerCase());
+    },
+    async add(txHash) {
+      const set = await load();
+      set.add(txHash.toLowerCase());
+      await mkdir(DRIFT_DIR, { recursive: true });
+      await writeFile(file, JSON.stringify([...set], null, 2), { mode: 0o600 });
+    },
+  };
+}

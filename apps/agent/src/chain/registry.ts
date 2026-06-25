@@ -47,12 +47,17 @@ export async function register(
 }
 
 // Post feedback for an agent after a job. value is an integer score (e.g. 0–100),
-// valueDecimals 0. Returns the real tx hash.
+// valueDecimals 0. Optionally anchor an attestation: feedbackURI references the
+// validator's signed attestation and hash is the sha256 of the work it covers — so
+// the on-chain feedback is provably backed by an independent validation, not just
+// asserted. Returns the real tx hash.
 export async function giveFeedback(
   privateKey: `0x${string}`,
   agentId: bigint,
   value: number,
-  tag: string
+  tag: string,
+  feedbackURI = "",
+  hash: `0x${string}` = ZERO_HASH
 ): Promise<`0x${string}`> {
   const { account, wallet } = walletFor(privateKey);
   const { request } = await publicClient.simulateContract({
@@ -60,7 +65,7 @@ export async function giveFeedback(
     address: ERC8004.reputation,
     abi: reputationAbi,
     functionName: "giveFeedback",
-    args: [agentId, BigInt(value), 0, tag, "", "", "", ZERO_HASH],
+    args: [agentId, BigInt(value), 0, tag, "", feedbackURI, "", hash],
   });
   const txHash = await wallet.writeContract(request);
   await publicClient.waitForTransactionReceipt({ hash: txHash });

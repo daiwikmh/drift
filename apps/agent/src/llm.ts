@@ -8,7 +8,7 @@ import type { Provider } from "./store.js";
 
 const DEFAULT_MODEL: Record<Provider, string> = {
   openrouter: "anthropic/claude-3.5-sonnet",
-  nvidia: "nvidia/nemotron-3-super-120b-a12b",
+  nvidia: "openai/gpt-oss-120b",
 };
 const BASE_URL: Record<Provider, string> = {
   openrouter: "https://openrouter.ai/api/v1",
@@ -48,13 +48,17 @@ export async function complete(system: string, user: string, model?: string): Pr
     apiKey: current.apiKey,
     baseURL: config.llmBaseUrl || BASE_URL[current.provider],
   });
-  const r = await client.chat.completions.create({
+  const body: Record<string, unknown> = {
     model: model || current.model,
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
-    max_tokens: 400,
-  });
-  return r.choices[0]?.message?.content?.trim() ?? null;
+    max_tokens: 1024,
+  };
+  // NVIDIA-hosted reasoning models default to heavy thinking — slow and prone to
+  // leaking the scratchpad into content. "low" keeps the answer in content and fast.
+  if (current.provider === "nvidia") body.reasoning_effort = "low";
+  const r = await client.chat.completions.create(body as unknown as Parameters<typeof client.chat.completions.create>[0]);
+  return (r as { choices: { message?: { content?: string } }[] }).choices[0]?.message?.content?.trim() || null;
 }

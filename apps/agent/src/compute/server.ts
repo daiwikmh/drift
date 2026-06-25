@@ -16,6 +16,7 @@ import {
 } from "../x402/server.js";
 import { X402_VERSION } from "../x402/types.js";
 import { AVAX_SCHEME, buildAvaxRequirement, verifyAvaxPayment, type AvaxPayment } from "../x402/avax.js";
+import { makeReplayGuard } from "../store.js";
 
 export type ComputeOpts = {
   name: string;
@@ -35,6 +36,7 @@ const SYSTEM_DEFAULT = "You are a helpful assistant. Be concise and accurate.";
 
 export function createInferHandler(opts: ComputeOpts): (req: InferRequest) => Promise<InferResponse> {
   const log = opts.onEvent ?? (() => {});
+  const replayGuard = makeReplayGuard(opts.address); // persists across restarts
 
   return async (req) => {
     const description = `${opts.skill} inference by ${opts.name}`;
@@ -71,7 +73,7 @@ export function createInferHandler(opts: ComputeOpts): (req: InferRequest) => Pr
     if (scheme === AVAX_SCHEME) {
       const p = decodePayment(header) as unknown as AvaxPayment;
       log(`verifying AVAX payment ${p.txHash}…`);
-      const v = await verifyAvaxPayment(p.txHash, avaxReq);
+      const v = await verifyAvaxPayment(p.txHash, avaxReq, replayGuard);
       if (!v.ok) {
         log(`402 · AVAX payment rejected: ${v.error}`);
         return need(v.error ?? "invalid avax payment");

@@ -21,6 +21,8 @@ import { spotPrice } from "../compute/market.js";
 import { loadSignals, saveSignals, type SignalRecord } from "../store.js";
 import { randomUUID } from "node:crypto";
 import { usdcBalance } from "../x402/usdc.js";
+import { JobEngine } from "../jobs/engine.js";
+import { isJobMsg } from "../jobs/protocol.js";
 
 export type AgentOpts = { name: string; skills: string[] };
 
@@ -169,8 +171,9 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
     emit("sys", theme.up, `serving compute via relay · ${myEndpoint} · ${myPriceAvax} AVAX or ${myPrice} USDC/call`);
   }
 
-  // --- mesh -------------------------------------------------------------------
+  // --- mesh + job engine ------------------------------------------------------
   let client: A2AClient;
+  let engine: JobEngine | null = null;
   const host = config.relayUrl.replace(/^wss?:\/\//, "");
   const selfPeer: Peer = {
     addr,
@@ -201,8 +204,13 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
         `${event === "join" ? "●" : "○"} ${p.name} ${event === "join" ? "online" : "offline"} · ${p.skills.join(", ")}`
       );
     },
-    onMessage: (from, payload) =>
-      emit("inbox", theme.accent, `from ${shortAddr(from)} · ${JSON.stringify(payload).slice(0, 80)}`),
+    onMessage: (from, payload) => {
+      if (engine && isJobMsg(payload)) {
+        engine.handle(from, payload).catch((e) => emit("drift", theme.amber, `job error: ${(e as Error).message}`));
+        return;
+      }
+      emit("inbox", theme.accent, `from ${shortAddr(from)} · ${JSON.stringify(payload).slice(0, 80)}`);
+    },
     onInfer: async (id, payment, body) => {
       if (!inferHandler) return client.inferResult(id, 404, { error: "not a provider" });
       try {
@@ -214,6 +222,29 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
     },
   });
   client.connect();
+
+  // The job engine plays buyer/worker/validator over the A2A wire. `self` is mutable
+  // so an on-chain `register` updates the agentId the engine signs/attests with.
+  const engineSelf = {
+    addr,
+    name,
+    agentId: agentId !== null ? Number(agentId) : undefined,
+    privateKey: wallet.privateKey,
+  };
+  engine = new JobEngine({
+    self: engineSelf,
+    send: (to, payload) => client.send(to, payload),
+    peers: () => peers,
+    emit,
+    sub: emitSub,
+    txUrl,
+    colors: { accent: theme.accent, up: theme.up, amber: theme.amber, dim: theme.dim },
+    onSettled: () => {
+      buys++;
+      refreshBalance();
+      refreshStatus();
+    },
+  });
 
   // --- setup: add the agent's LLM key, live + persisted ----------------------
   const setup = async () => {
@@ -265,6 +296,7 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
       agentId = id;
       await saveAgentId(addr, id);
       selfPeer.agentId = Number(id);
+      engineSelf.agentId = Number(id); // engine now signs/attests as this on-chain id
       client.announce(); // re-broadcast presence with the fresh on-chain id
       emit("drift", theme.up, `✓ registered on-chain · agent #${id}`);
       emitSub(txUrl(txHash));
@@ -468,6 +500,8 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
         box("commands", [
           `${c.bold("providers")}              compute providers online, ranked by reputation`,
           `${c.bold("buy <#> <symbol>")}       pay a provider (AVAX); a trade-signal is recorded`,
+          `${c.bold("hire <skill> <brief>")}   delegate a job — worker delivers, validator attests, I pay on PASS`,
+          `${c.bold("jobs")}                   jobs I've started + their status`,
           `${c.bold("signals")}                my purchased trade signals + their status`,
           `${c.bold("settle")}                 score ready signals vs price → on-chain reputation`,
           `${c.bold("register")}               mint my on-chain ERC-8004 identity`,
@@ -516,6 +550,27 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
       case "settle":
         await doSettle();
         return;
+      case "hire": {
+        const skill = rest[0];
+        const brief = rest.slice(1).join(" ");
+        if (!skill || !brief) {
+          emit("drift", theme.amber, "usage: hire <skill> <brief>   (e.g. hire trade-signal BTC outlook)");
+          return;
+        }
+        if (engine) await engine.hire(skill, brief);
+        return;
+      }
+      case "jobs": {
+        const list = engine?.list() ?? [];
+        if (!list.length) {
+          emit("mkt", theme.amber, "no jobs yet — `hire <skill> <brief>` (needs a worker + a validator online)");
+          return;
+        }
+        list.forEach((j, i) =>
+          emit("mkt", theme.accent, `${i + 1}. ${j.skill} · ${j.status} · worker ${shortAddr(j.worker)}${j.txHash ? ` · paid` : ""}`)
+        );
+        return;
+      }
       case "skills":
         emit(
           "drift",
