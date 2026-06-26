@@ -1,20 +1,39 @@
 "use client";
 
+import { ArrowUpRight } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 const footerLinks = {
   Product: [
+    { name: "Agent capabilities", href: "#features" },
     { name: "How it works", href: "#how-it-works" },
-    { name: "Settlement", href: "#infra" },
+    { name: "Pricing", href: "#pricing" },
     { name: "Integrations", href: "#integrations" },
-    { name: "Marketplace", href: "/dashboard/marketplace" },
   ],
-  Resources: [
+  Developers: [
     { name: "Documentation", href: "#developers" },
-    { name: "Provider guide", href: "#developers" },
-    { name: "Snowtrace", href: "https://testnet.snowtrace.io" },
+    { name: "Agent SDK", href: "#" },
+    { name: "API Reference", href: "#developers" },
+    { name: "Status", href: "#" },
+  ],
+  Company: [
+    { name: "About", href: "#" },
+    { name: "Blog", href: "#" },
+    { name: "Careers", href: "#", badge: "Hiring" },
+    { name: "Contact", href: "#" },
+  ],
+  Legal: [
+    { name: "Privacy", href: "#" },
+    { name: "Terms", href: "#" },
+    { name: "Security", href: "#security" },
   ],
 };
+
+const socialLinks = [
+  { name: "Twitter", href: "#" },
+  { name: "GitHub", href: "#" },
+  { name: "LinkedIn", href: "#" },
+];
 
 function AnimatedWaveCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -92,17 +111,31 @@ export function FooterSection() {
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 lg:px-12">
         {/* Main Footer */}
         <div className="py-16 lg:py-20">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 lg:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-12 lg:gap-8">
             {/* Brand Column */}
             <div className="col-span-2">
-              <a href="/" className="inline-flex items-center gap-2 mb-6">
-                <span className="text-2xl font-display text-white">DRIFT</span>
-                <span className="text-xs text-white/40 font-mono">AVAX</span>
+              <a href="#" className="inline-flex items-center gap-2 mb-6">
+                <span className="text-2xl font-display text-white">COMPUTE</span>
+                <span className="text-xs text-white/40 font-mono">TM</span>
               </a>
 
               <p className="text-white/50 leading-relaxed mb-8 max-w-xs text-sm">
-                Buy and sell LLM inference between agents on Avalanche. Pay per call in native AVAX or gasless USDC.
+                Autonomous AI agents for distributed computing. Delegate complex tasks to intelligent workers.
               </p>
+
+              {/* Social Links */}
+              <div className="flex gap-6">
+                {socialLinks.map((link) => (
+                  <a
+                    key={link.name}
+                    href={link.href}
+                    className="text-sm text-white/40 hover:text-white transition-colors flex items-center gap-1 group"
+                  >
+                    {link.name}
+                    <ArrowUpRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                  </a>
+                ))}
+              </div>
             </div>
 
             {/* Link Columns */}
@@ -117,6 +150,11 @@ export function FooterSection() {
                         className="text-sm text-white/40 hover:text-white transition-colors inline-flex items-center gap-2"
                       >
                         {link.name}
+                        {"badge" in link && link.badge && (
+                          <span className="text-xs px-2 py-0.5 bg-white text-black rounded-full">
+                            {link.badge}
+                          </span>
+                        )}
                       </a>
                     </li>
                   ))}
@@ -129,13 +167,13 @@ export function FooterSection() {
         {/* Bottom Bar */}
         <div className="py-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-white/30">
-            &copy; 2026 DRIFT. All rights reserved.
+            &copy; 2025 COMPUTE. All rights reserved.
           </p>
 
           <div className="flex items-center gap-4 text-sm text-white/30">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#eca8d6]" />
-              Live on Avalanche Fuji
+              All agents operational
             </span>
           </div>
         </div>

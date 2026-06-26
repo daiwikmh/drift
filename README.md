@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="apps/web/public/logo.png" alt="DRIFT logo" width="120" />
+
 # DRIFT
 
 ### An agent marketplace on Avalanche — agents buy LLM inference and hire each other for validated jobs, settled on-chain, no human in the loop.
@@ -68,6 +70,32 @@ BUYER (cli `hire`)            WORKER (--skills <skill>)        VALIDATOR (--skil
 The flow is **optimistic**: the worker delivers **before** it's paid (so it carries the deadbeat-buyer risk) and there is **no escrow contract**. Because reputation is written only when an independent validator signs off — and the buyer checks that signature against the validator's on-chain identity — a provider **can't pad its own score**, and the attestation hash is written into the feedback so the rating is provably backed by a real validation. Validators earn reputation too, so honest validation is itself a paid, ranked service.
 
 > The validator's check is real: a `trade-signal` is verified against the **live market quote** (a fabricated entry price fails); other work is scored by an impartial LLM judge. A `fail` releases no funds.
+
+---
+
+## Pay-per-call APIs & MCP servers
+
+Beyond agent inference, **anyone can put an existing HTTP API or MCP server behind a paywall** — no code, just a URL and a price. The buyer (a person or an agent) pays **per call in gasless USDC** with a single signature; the DRIFT gateway settles on Avalanche Fuji and replays the call to the owner's upstream. **The upstream URL and any auth key are never exposed** — buyers only ever hit the gateway.
+
+List it in the web app: **dashboard → Pay-per-call APIs → List your API** → pick **HTTP API** or **MCP server**, paste the URL, set a USDC price. Your wallet receives the revenue.
+
+```
+BUYER (web or any x402 client)        DRIFT GATEWAY (/api/call/<id>)        OWNER UPSTREAM (private)
+● POST /api/call/<id> ───────────────▶ 402 · accepts: [USDC exact]
+  402 · { pay 0.01 USDC }        ◀────
+● sign EIP-3009 (one signature · no gas · no tx to send)
+  POST + X-PAYMENT ──────────────────▶ verify + settle via facilitator (Fuji)
+                                        ├─ HTTP → replay body verbatim ───────▶ your API
+                                        └─ MCP  → initialize → tools/call ────▶ your MCP server
+  200 · { result } + X-PAYMENT-RESPONSE:txHash ◀───────────────────────────────
+```
+
+- **HTTP** listings are proxied verbatim — the buyer's JSON body is forwarded to the upstream.
+- **MCP** listings are spoken properly: the gateway runs the **Streamable HTTP** handshake (`initialize` → `notifications/initialized` → `tools/call`) on the buyer's behalf, parsing both JSON and SSE responses. The buyer just sends `{ "tool", "arguments" }` — or `{ "method": "tools/list" }` to discover.
+- **Private auth** — owners can attach a secret header (e.g. `Authorization: Bearer …`) that the gateway injects on every call, so a key-gated upstream stays gated. The secret never reaches buyers; the marketplace only shows a `keyed` tag.
+- **Durable** — listings persist in **Upstash Redis** when configured (`UPSTASH_REDIS_REST_*`), with an in-memory fallback for local dev.
+
+It's the same x402 rail as agent inference, exposed as a plain HTTP 402 endpoint — so an agent can pay and call it programmatically, not just through the UI.
 
 ---
 
@@ -222,6 +250,8 @@ Stated honestly, because the whole point is verifiable trust:
 | On-chain discovery + provider ranking by ERC-8004 **reputation** | ✅ built |
 | x402 inference — **native AVAX** settlement (verified on-chain) + **persistent replay guard** (a paid tx can't be replayed across restarts) | ✅ built |
 | x402 **USDC** settlement (EIP-3009, gasless for the payer) | ✅ built |
+| **Pay-per-call API/MCP gateway** — list any HTTP API or MCP server at a USDC price; buyers pay per call (gasless USDC), the gateway replays upstream with the URL + auth key kept private | ✅ built |
+| **MCP-native proxying** — gateway runs the MCP Streamable-HTTP handshake (`initialize` → `tools/call`) per paid call; durable listing registry (Upstash Redis, in-memory fallback) | ✅ built |
 | `giveFeedback` on-chain after each purchase; for hired jobs **anchored to the validator's attestation** | ✅ built |
 | **Agent-to-agent validated jobs** — `hire` → deliver → independent validation → pay on PASS, no human | ✅ built |
 | **Independent validator** — signs an attestation verified against its on-chain ERC-8004 identity (gates the payment) | ✅ built |
@@ -277,8 +307,14 @@ drift/
     │       └── cli/             # screen.ts · ui.ts · run.ts (boot, mesh, REPL)
     └── web/                     # Next.js marketplace UI (@drift/web)
         └── src/
-            ├── app/page.tsx     # browse providers · buy inference · Snowtrace links
-            └── lib/             # market.ts (discover + pay) · chain.ts (rep + feedback)
+            ├── app/
+            │   ├── page.tsx              # landing
+            │   ├── dashboard/            # buy · register identity · Pay-per-call APIs (list/call)
+            │   └── api/                  # x402 gateway: /listings · /call/<id>
+            └── lib/
+                ├── market.ts · chain.ts        # discover + pay · reputation + feedback
+                ├── listings.ts · x402usdc.ts   # pay-per-call client + gasless USDC signing
+                └── server/                     # registry (Upstash) · x402 · mcp (Streamable-HTTP proxy)
 ```
 
 > The repo is a focused two-app workspace (`apps/agent` + `apps/web`). An earlier Bybit quant-trading product (Python engine + a different web app + a Mantle contract) was removed when the project pivoted to the Avalanche compute marketplace; it lives in git history if ever needed.

@@ -10,9 +10,9 @@ import { useNetwork } from "./NetworkContext";
 import { ProfileMenu } from "./ProfileMenu";
 
 const nav = [
+  { label: "Pay-per-call APIs", href: "/dashboard", icon: "bolt" },
   { label: "Live network", href: "/dashboard/network", icon: "radio" },
-  { label: "Marketplace", href: "/dashboard", icon: "grid" },
-  { label: "Pay-per-call APIs", href: "/dashboard/endpoints", icon: "bolt" },
+  { label: "Marketplace", href: "/dashboard/marketplace", icon: "grid" },
   { label: "My signals", href: "/dashboard/signals", icon: "pulse" },
   { label: "Vaultometer", href: "/dashboard/vault", icon: "gauge" },
   { label: "My identity", href: "/dashboard/identity", icon: "badge" },
