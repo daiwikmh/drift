@@ -8,6 +8,7 @@ const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 function pageName(pathname: string) {
   if (pathname.startsWith("/dashboard/serve")) return "Go live";
+  if (pathname.startsWith("/dashboard/endpoints")) return "Pay-per-call APIs";
   if (pathname.startsWith("/dashboard/identity")) return "My identity";
   if (pathname.startsWith("/dashboard/signals")) return "My signals";
   if (pathname.startsWith("/dashboard/vault")) return "Vaultometer";

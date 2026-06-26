@@ -9,6 +9,7 @@ type Ctx = {
   connecting: boolean;
   error: string | null;
   connect: () => Promise<void>;
+  disconnect: () => void;
   refreshBalances: () => void;
 };
 
@@ -18,6 +19,7 @@ const WalletCtx = createContext<Ctx>({
   connecting: false,
   error: null,
   connect: async () => {},
+  disconnect: () => {},
   refreshBalances: () => {},
 });
 
@@ -46,10 +48,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const disconnect = () => {
+    setAccount(null);
+    setBalances(null);
+    setError(null);
+  };
+
   useEffect(refreshBalances, [account]);
 
   return (
-    <WalletCtx.Provider value={{ account, balances, connecting, error, connect, refreshBalances }}>
+    <WalletCtx.Provider value={{ account, balances, connecting, error, connect, disconnect, refreshBalances }}>
       {children}
     </WalletCtx.Provider>
   );

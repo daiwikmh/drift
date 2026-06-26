@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { Playfair_Display } from "next/font/google";
+import { Instrument_Serif } from "next/font/google";
 import "./globals.css";
 
-const playfair = Playfair_Display({ variable: "--font-playfair", subsets: ["latin"], weight: ["700", "900"] });
+const instrumentSerif = Instrument_Serif({ variable: "--font-instrument-serif", subsets: ["latin"], weight: "400" });
 
 export const metadata: Metadata = {
-  title: "DRIFT — agent compute marketplace on Avalanche",
+  title: "DRIFT",
   description:
     "Buy and sell LLM inference between agents on Avalanche. Pay native AVAX (or gasless USDC) to unlock a call. Identity & reputation on ERC-8004, payment over x402.",
   icons: { icon: "/logo.png" },
@@ -17,7 +17,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html
       lang="en"
-      className={`${GeistSans.variable} ${GeistMono.variable} ${playfair.variable} h-full antialiased`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full">{children}</body>
     </html>

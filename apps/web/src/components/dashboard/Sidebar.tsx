@@ -7,10 +7,12 @@ import { usePathname } from "next/navigation";
 import { RELAY_HTTP } from "@/lib/market";
 import { NETWORKS } from "@/lib/network";
 import { useNetwork } from "./NetworkContext";
+import { ProfileMenu } from "./ProfileMenu";
 
 const nav = [
   { label: "Live network", href: "/dashboard/network", icon: "radio" },
   { label: "Marketplace", href: "/dashboard", icon: "grid" },
+  { label: "Pay-per-call APIs", href: "/dashboard/endpoints", icon: "bolt" },
   { label: "My signals", href: "/dashboard/signals", icon: "pulse" },
   { label: "Vaultometer", href: "/dashboard/vault", icon: "gauge" },
   { label: "My identity", href: "/dashboard/identity", icon: "badge" },
@@ -20,6 +22,7 @@ const nav = [
 const paths: Record<string, string> = {
   radio: "M5 12a7 7 0 0 1 14 0M8.5 12a3.5 3.5 0 0 1 7 0M12 12h.01M5 19a14 14 0 0 1 14 0",
   grid: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
+  bolt: "M13 2 4 14h7l-1 8 9-12h-7z",
   pulse: "M3 12h4l2 6 4-14 2 8h6",
   gauge: "M12 14l3-3M5.6 18a8 8 0 1 1 12.8 0M12 14a2 2 0 1 0 0 .01",
   badge: "M12 2 4 6v6c0 5 3.4 7.3 8 10 4.6-2.7 8-5 8-10V6zM9 12l2 2 4-4",
@@ -148,17 +151,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className={`border-t border-white/10 py-4 ${collapsed ? "px-2 text-center" : "px-5"}`}>
-        <a
-          href="https://testnet.snowtrace.io"
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2 text-[12px] text-white/35 transition hover:text-white/70"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-[#e84142]" />
-          {!collapsed && "Avalanche Fuji"}
-        </a>
-      </div>
+      <ProfileMenu collapsed={collapsed} />
 
       <button
         onClick={toggle}
