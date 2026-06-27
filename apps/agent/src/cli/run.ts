@@ -20,7 +20,9 @@ import { scoreSignal, type Signal } from "../compute/signal.js";
 import { spotPrice } from "../compute/market.js";
 import { loadSignals, saveSignals, type SignalRecord } from "../store.js";
 import { randomUUID } from "node:crypto";
-import { usdcBalance } from "../x402/usdc.js";
+import { usdcBalance, fromAtomic } from "../x402/usdc.js";
+import { createPayment, decodePaymentResponse } from "../x402/client.js";
+import type { PaymentRequirements } from "../x402/types.js";
 import { JobEngine } from "../jobs/engine.js";
 import { isJobMsg } from "../jobs/protocol.js";
 
@@ -490,6 +492,69 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
     await saveSignals(addr, list);
   };
 
+  // Pay any x402 pay-per-call endpoint (e.g. a dashboard listing's /api/call/<id>)
+  // with the agent's funded wallet — sign the EIP-3009 USDC authorization, no popup.
+  const payPerCall = async (url: string, bodyStr: string) => {
+    let body: string;
+    try {
+      body = JSON.stringify(JSON.parse(bodyStr));
+    } catch {
+      emit("mkt", theme.amber, "body must be valid JSON");
+      return;
+    }
+    emit("mkt", theme.dim, `POST ${url}`);
+    let res: Response;
+    try {
+      res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    } catch (e) {
+      emit("drift", theme.amber, `request failed: ${(e as Error).message}`);
+      return;
+    }
+    if (res.status !== 402) {
+      emit("drift", res.ok ? theme.accent : theme.amber, `HTTP ${res.status}`);
+      emitSub((await res.text()).slice(0, 800));
+      return;
+    }
+    const challenge = (await res.json()) as { accepts?: PaymentRequirements[] };
+    const req = (challenge.accepts ?? []).find((a) => a.scheme === "exact");
+    if (!req) {
+      emit("drift", theme.amber, "endpoint doesn't accept USDC (x402 exact)");
+      return;
+    }
+    emit("mkt", theme.dim, `402 · pay ${fromAtomic(req.maxAmountRequired)} USDC → ${shortAddr(req.payTo)}`);
+    let header: string;
+    try {
+      ({ header } = await createPayment(req, wallet.privateKey));
+    } catch (e) {
+      emit("drift", theme.amber, `signing failed: ${(e as Error).message}`);
+      return;
+    }
+    let paid: Response;
+    try {
+      paid = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-PAYMENT": header },
+        body,
+      });
+    } catch (e) {
+      emit("drift", theme.amber, `paid call failed: ${(e as Error).message}`);
+      return;
+    }
+    const text = await paid.text();
+    const pr = paid.headers.get("x-payment-response");
+    const dec = pr ? decodePaymentResponse(pr) : { success: false };
+    if (dec.txHash) {
+      emit("drift", theme.accent, `✓ paid ${fromAtomic(req.maxAmountRequired)} USDC · settled on Avalanche Fuji`);
+      emitSub(txUrl(dec.txHash as `0x${string}`));
+    }
+    emit("drift", paid.ok ? theme.accent : theme.amber, `HTTP ${paid.status}`);
+    try {
+      emitSub(JSON.stringify(JSON.parse(text), null, 2));
+    } catch {
+      emitSub(text.slice(0, 1000));
+    }
+  };
+
   const dispatch = async (raw: string) => {
     const line = raw.trim();
     if (!line) return;
@@ -500,6 +565,7 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
         box("commands", [
           `${c.bold("providers")}              compute providers online, ranked by reputation`,
           `${c.bold("buy <#> <symbol>")}       pay a provider (AVAX); a trade-signal is recorded`,
+          `${c.bold("pay <url> [json]")}       pay any x402 pay-per-call endpoint (USDC) → prints the tx`,
           `${c.bold("hire <skill> <brief>")}   delegate a job — worker delivers, validator attests, I pay on PASS`,
           `${c.bold("jobs")}                   jobs I've started + their status`,
           `${c.bold("signals")}                my purchased trade signals + their status`,
@@ -542,6 +608,16 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
       }
       case "buy": {
         await doBuy(rest);
+        return;
+      }
+      case "pay": {
+        const url = rest[0];
+        const bodyStr = rest.slice(1).join(" ") || "{}";
+        if (!url || !/^https?:\/\//.test(url)) {
+          emit("mkt", theme.amber, 'usage: pay <gateway-url> [json]  ·  e.g. pay https://drift-trader.vercel.app/api/call/<id> {"prompt":"hi"}');
+          return;
+        }
+        await payPerCall(url, bodyStr);
         return;
       }
       case "signals":
