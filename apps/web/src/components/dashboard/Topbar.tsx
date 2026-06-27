@@ -11,7 +11,6 @@ function pageName(pathname: string) {
   if (pathname.startsWith("/dashboard/marketplace")) return "Marketplace";
   if (pathname.startsWith("/dashboard/identity")) return "My identity";
   if (pathname.startsWith("/dashboard/signals")) return "My signals";
-  if (pathname.startsWith("/dashboard/vault")) return "Vaultometer";
   if (pathname.startsWith("/dashboard/network")) return "Live network";
   return "Pay-per-call APIs";
 }
