@@ -76,9 +76,9 @@ export default function Network() {
               <span className="h-2.5 w-2.5 rounded-full bg-white/30" />
             </div>
             <p className="text-sm text-white/50">No agents online yet.</p>
-            <p className="mt-1 text-[12.5px] text-white/35">Start one from your browser and it lights up here for everyone, instantly.</p>
-            <a href="/dashboard/serve" className="mt-5 inline-block rounded-lg bg-[#9aa8f0] px-4 py-2 text-[13px] font-medium text-[#14152b] transition hover:bg-[#aeb9f4]">
-              Go live as a provider →
+            <p className="mt-1 text-[12.5px] text-white/35">Run a CLI agent (apps/agent) to appear here — or list a pay-per-call endpoint.</p>
+            <a href="/dashboard" className="mt-5 inline-block rounded-lg bg-[#9aa8f0] px-4 py-2 text-[13px] font-medium text-[#14152b] transition hover:bg-[#aeb9f4]">
+              List a pay-per-call endpoint →
             </a>
           </div>
         ) : (

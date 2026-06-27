@@ -8,12 +8,15 @@
 
 *A provider agent puts an LLM behind a paywalled API. A buyer discovers it, ranks candidates by **on-chain reputation**, pays **native AVAX** (or gasless USDC) to unlock the call, gets the result, and posts feedback on-chain. Identity and reputation live on **ERC-8004**; payment is an **x402** HTTP 402 flow. No person approves the provider, the price, or the payment.*
 
+[![Live demo](https://img.shields.io/badge/▶%20Live%20demo-drift--trader.vercel.app-9aa8f0)](https://drift-trader.vercel.app)
 [![Avalanche Fuji](https://img.shields.io/badge/Chain-Avalanche%20Fuji-e84142?logo=avalanche&logoColor=white)](https://testnet.snowtrace.io)
 [![ERC-8004](https://img.shields.io/badge/Identity-ERC--8004-627eea?logo=ethereum&logoColor=white)](https://eips.ethereum.org/EIPS/eip-8004)
 [![x402](https://img.shields.io/badge/Payments-x402-000000)](https://www.x402.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Web-Next.js-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#-license)
+
+**▶ Live app:** **[drift-trader.vercel.app](https://drift-trader.vercel.app)** — list any API/MCP server, pay per call in gasless USDC on Avalanche Fuji. Relay: `drift-production-0696.up.railway.app`.
 
 </div>
 
@@ -198,14 +201,17 @@ COMPUTE_PRICE_AVAX=0.001    # provider price per call (AVAX); COMPUTE_PRICE_USDC
 
 ## Deploy
 
-Host the **relay** (Railway) and the **web** (Vercel); providers run anywhere and
-dial out — no public URL needed. Full walkthrough in **[DEPLOY.md](./DEPLOY.md)**.
+**Live now:** web on **Vercel** → [drift-trader.vercel.app](https://drift-trader.vercel.app) · relay on **Railway** → `drift-production-0696.up.railway.app`. Full walkthrough in **[DEPLOY.md](./DEPLOY.md)**.
+
+The **web** (`apps/web`) is the whole user-facing app *and* the pay-per-call gateway — it needs no relay for pay-per-call. The **relay** (`apps/agent`) is only for the live-agent inference mesh.
 
 ```bash
-# relay  → Railway: root apps/agent (ships Dockerfile + railway.json), binds $PORT
-# web    → Vercel: root apps/web, set NEXT_PUBLIC_RELAY_HTTP=https://<relay-domain>
-# provider (anywhere):
-RELAY_URL=wss://<relay-domain> OPENROUTER_API_KEY=sk-or-… \
+# web   → Vercel: root apps/web
+#         envs: UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN  (durable listings)
+#               NEXT_PUBLIC_RELAY_HTTP=https://drift-production-0696.up.railway.app  (live agents)
+# relay → Railway: root apps/agent (ships Dockerfile + railway.json), binds $PORT — no secrets
+# CLI provider (optional, anywhere):
+RELAY_URL=wss://drift-production-0696.up.railway.app OPENROUTER_API_KEY=sk-or-… \
   npm run drift -- --name oracle --skills llm-inference
 ```
 

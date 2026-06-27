@@ -7,7 +7,7 @@ import { useNetwork } from "./NetworkContext";
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 function pageName(pathname: string) {
-  if (pathname.startsWith("/dashboard/serve")) return "Go live";
+  if (pathname.startsWith("/dashboard/playground")) return "Playground";
   if (pathname.startsWith("/dashboard/marketplace")) return "Marketplace";
   if (pathname.startsWith("/dashboard/identity")) return "My identity";
   if (pathname.startsWith("/dashboard/signals")) return "My signals";

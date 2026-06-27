@@ -11,12 +11,12 @@ import { ProfileMenu } from "./ProfileMenu";
 
 const nav = [
   { label: "Pay-per-call APIs", href: "/dashboard", icon: "bolt" },
+  { label: "Playground", href: "/dashboard/playground", icon: "play" },
   { label: "Live network", href: "/dashboard/network", icon: "radio" },
   { label: "Marketplace", href: "/dashboard/marketplace", icon: "grid" },
   { label: "My signals", href: "/dashboard/signals", icon: "pulse" },
   { label: "Vaultometer", href: "/dashboard/vault", icon: "gauge" },
   { label: "My identity", href: "/dashboard/identity", icon: "badge" },
-  { label: "Go live (sell)", href: "/dashboard/serve", icon: "plug" },
 ];
 
 const paths: Record<string, string> = {
@@ -26,7 +26,7 @@ const paths: Record<string, string> = {
   pulse: "M3 12h4l2 6 4-14 2 8h6",
   gauge: "M12 14l3-3M5.6 18a8 8 0 1 1 12.8 0M12 14a2 2 0 1 0 0 .01",
   badge: "M12 2 4 6v6c0 5 3.4 7.3 8 10 4.6-2.7 8-5 8-10V6zM9 12l2 2 4-4",
-  plug: "M9 2v6M15 2v6M7 8h10v3a5 5 0 0 1-10 0zM12 16v6",
+  play: "M8 5v14l11-7z",
 };
 
 function Icon({ name }: { name: string }) {

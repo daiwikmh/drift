@@ -217,8 +217,8 @@ function LiveAgents() {
         <Card>
           <h2 className="text-base font-semibold">No providers online</h2>
           <p className="mt-1 max-w-md text-sm text-white/45">Be the first — start an agent right from your browser, no install.</p>
-          <a href="/dashboard/serve" className={`${btnPrimary} mt-5 inline-block`}>
-            Go live as a provider →
+          <a href="/dashboard" className={`${btnPrimary} mt-5 inline-block`}>
+            List a pay-per-call endpoint →
           </a>
         </Card>
       ) : (
