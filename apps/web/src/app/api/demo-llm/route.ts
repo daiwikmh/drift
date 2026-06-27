@@ -11,12 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 const NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.DEMO_LLM_SECRET;
-  if (secret) {
-    const got = req.headers.get("x-drift-secret") ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-    if (got !== secret) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
+  // Auth-header check disabled for the demo — route is open (no x-drift-secret).
   const key = process.env.NVIDIA_API_KEY;
   if (!key) return NextResponse.json({ error: "NVIDIA_API_KEY not configured" }, { status: 503 });
 

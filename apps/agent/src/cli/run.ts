@@ -187,9 +187,17 @@ export async function runAgent(opts: AgentOpts): Promise<void> {
     model: llmMeta()?.model,
     agentId: agentId !== null ? Number(agentId) : undefined,
   };
+  let relayWarned = false;
   client = new A2AClient(config.relayUrl, selfPeer, {
-    onOpen: () => emit("sys", theme.dim, `relay connected · ${host}`),
-    onClose: () => emit("sys", theme.amber, "relay offline — retrying…"),
+    onOpen: () => {
+      relayWarned = false;
+      emit("sys", theme.dim, `relay connected · ${host}`);
+    },
+    onClose: () => {
+      if (relayWarned) return;
+      relayWarned = true;
+      emit("sys", theme.amber, "relay offline — retrying quietly in the background");
+    },
     onPeers: (ps) => {
       peers = ps.filter((p) => p.addr !== addr);
       refreshStatus();
