@@ -22,6 +22,7 @@ export default function Playground() {
   const [result, setResult] = useState<{ status: number; json: unknown; txHash?: string } | null>(null);
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  const [compact, setCompact] = useState(false);
 
   useEffect(() => setOrigin(window.location.origin), []);
 
@@ -43,10 +44,12 @@ export default function Playground() {
     if (!selectedId && listings.length) setSelectedId(listings[0].id);
   }, [listings, selectedId]);
 
-  // Reset the body template only when the chosen endpoint changes (not on poll).
+  // Reset the body template + last result only when the chosen endpoint changes.
   useEffect(() => {
     const l = listings.find((x) => x.id === selectedId);
     if (l) setBody(defaultBody(l));
+    setResult(null);
+    setErr(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
@@ -92,19 +95,28 @@ export default function Playground() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-9">
-      <h1 className="font-display text-2xl tracking-tight">Playground</h1>
-      <p className="mt-1 max-w-2xl text-sm text-white/45">
-        Send a real pay-per-call request to any listed endpoint. Pick one, edit the body, and pay in one gasless USDC
-        signature — you&rsquo;ll see the x402 terms, the on-chain settlement, and the response.
-      </p>
+    <div className={`mx-auto max-w-3xl px-8 ${compact ? "py-6" : "py-9"}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl tracking-tight">Playground</h1>
+          {!compact && (
+            <p className="mt-1 max-w-2xl text-sm text-white/45">
+              Send a real pay-per-call request to any listed endpoint. Pick one, edit the body, and pay in one gasless
+              USDC signature — you&rsquo;ll see the x402 terms, the on-chain settlement, and the response.
+            </p>
+          )}
+        </div>
+        <button onClick={() => setCompact((c) => !c)} className={`${btnGhost} shrink-0`}>
+          {compact ? "Expand" : "Compact"}
+        </button>
+      </div>
 
       {loading ? (
-        <Card className="mt-8">
+        <Card className={compact ? "mt-4" : "mt-8"}>
           <p className="text-sm text-white/40">Loading endpoints…</p>
         </Card>
       ) : listings.length === 0 ? (
-        <Card className="mt-8">
+        <Card className={compact ? "mt-4" : "mt-8"}>
           <p className="text-sm text-white/40">
             No endpoints listed yet.{" "}
             <Link href="/dashboard" className="text-[#9aa8f0] hover:underline">
@@ -115,20 +127,36 @@ export default function Playground() {
         </Card>
       ) : (
         <>
-          <Card className="mt-8">
-            <label className="block">
-              <span className={microLabel}>Endpoint</span>
-              <select className={`${fieldCls} mt-1.5`} value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+          <Card className={compact ? "mt-4" : "mt-8"}>
+            {/* Every listed endpoint as a chip — click any to test it */}
+            <div>
+              <span className={microLabel}>
+                Endpoint{listings.length > 1 ? ` · ${listings.length} listed` : ""}
+              </span>
+              <div className="mt-1.5 flex flex-wrap gap-2">
                 {listings.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name} · ${l.priceUsdc.toFixed(2)} · {l.kind === "mcp" ? "MCP" : l.method}
-                    {l.hasAuth ? " · keyed" : ""}
-                  </option>
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => setSelectedId(l.id)}
+                    className={`rounded-full border px-3 py-1.5 text-left text-[12.5px] transition ${
+                      selectedId === l.id
+                        ? "border-[#9aa8f0] bg-[#9aa8f0]/10 text-white"
+                        : "border-white/10 text-white/55 hover:border-white/30"
+                    }`}
+                  >
+                    {l.name}
+                    <span className="text-white/35">
+                      {" "}
+                      · ${l.priceUsdc.toFixed(2)} · {l.kind === "mcp" ? "MCP" : l.method}
+                      {l.hasAuth ? " · keyed" : ""}
+                    </span>
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
 
-            {selected && (
+            {selected && !compact && (
               <>
                 {/* The endpoint a buyer actually calls — the x402 gateway, not the upstream URL */}
                 <div className="mt-4">
@@ -166,7 +194,7 @@ export default function Playground() {
                   : "Request body (JSON, forwarded to the endpoint)"}
               </span>
               <textarea
-                className={`${fieldCls} mt-1.5 h-32 font-mono text-[12px]`}
+                className={`${fieldCls} mt-1.5 ${compact ? "h-20" : "h-32"} font-mono text-[12px]`}
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
               />
@@ -182,7 +210,9 @@ export default function Playground() {
                   {connecting ? "Connecting…" : "Connect wallet to call"}
                 </button>
               )}
-              <span className="text-[12px] text-white/35">Gasless USDC — one signature, no transaction to send.</span>
+              {!compact && (
+                <span className="text-[12px] text-white/35">Gasless USDC — one signature, no transaction to send.</span>
+              )}
             </div>
             {err && <p className="mt-3 text-[13px] text-[#e84142]">⚠ {err}</p>}
 
@@ -201,7 +231,11 @@ export default function Playground() {
                     </a>
                   )}
                 </div>
-                <pre className="max-h-72 overflow-auto rounded-lg border border-white/10 bg-black/40 p-3 font-mono text-[12px] text-white/80">
+                <pre
+                  className={`overflow-auto rounded-lg border border-white/10 bg-black/40 p-3 font-mono text-[12px] text-white/80 ${
+                    compact ? "max-h-44" : "max-h-72"
+                  }`}
+                >
                   {JSON.stringify(result.json, null, 2)}
                 </pre>
               </div>
@@ -209,7 +243,7 @@ export default function Playground() {
           </Card>
 
           {/* Call it from anywhere (agent / external) */}
-          {selected && (
+          {selected && !compact && (
             <>
               <Section label="Call it from anywhere" />
               <Card>
