@@ -6,6 +6,9 @@
 // interface either way — the API routes don't care which backend is active.
 import { randomBytes } from "crypto";
 import { Redis } from "@upstash/redis";
+import { isCasperAccount, MIN_TRANSFER_CSPR, type CasperAccount } from "../casper";
+
+export type Category = "ai" | "data" | "tool" | "other";
 
 export type Listing = {
   id: string;
@@ -16,20 +19,40 @@ export type Listing = {
   authHeaderValue?: string; // server-only — the secret value, injected by the gateway
   kind: "http" | "mcp";
   method: string;
-  priceUsdc: number;
-  payTo: `0x${string}`;
-  owner: `0x${string}`;
+  category: Category;
+  priceCspr: number;
+  payTo: CasperAccount;
+  owner: CasperAccount;
   createdAt: number;
   calls: number;
-  revenueUsdc: number;
+  revenueCspr: number;
 };
 
 export type PublicListing = Omit<Listing, "upstreamUrl" | "authHeaderName" | "authHeaderValue"> & {
   hasAuth: boolean;
 };
 
+// A composition: a saved sequence of existing listings, each paid for and
+// called in order. `bodyTemplate` for steps after the first may reference
+// the previous step's response via "{{previous}}" (whole response, JSON) or
+// "{{previous.someKey}}" (a top-level field) — substituted client-side at
+// run time. No new payment mechanism: each step is a normal, separate
+// pay-per-call purchase against its own listing.
+export type PipelineStep = { listingId: string; bodyTemplate: string };
+
+export type Pipeline = {
+  id: string;
+  name: string;
+  description: string;
+  owner: CasperAccount;
+  steps: PipelineStep[];
+  createdAt: number;
+  calls: number;
+};
+
 const LKEY = "drift:listings"; // Redis hash: id -> Listing
 const NKEY = "drift:nonces"; // Redis set: used EIP-3009 nonces
+const PKEY = "drift:pipelines"; // Redis hash: id -> Pipeline
 
 const redis =
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
@@ -43,11 +66,14 @@ const redis =
 const g = globalThis as typeof globalThis & {
   _driftListings?: Map<string, Listing>;
   _driftNonces?: Set<string>;
+  _driftPipelines?: Map<string, Pipeline>;
 };
 if (!g._driftListings) g._driftListings = new Map();
 if (!g._driftNonces) g._driftNonces = new Set();
+if (!g._driftPipelines) g._driftPipelines = new Map();
 const memStore = g._driftListings;
 const memNonces = g._driftNonces;
+const memPipelines = g._driftPipelines;
 
 export function publicView(l: Listing): PublicListing {
   const { upstreamUrl: _u, authHeaderName: _n, authHeaderValue: _v, ...rest } = l;
@@ -73,17 +99,19 @@ export async function createListing(input: unknown): Promise<{ listing?: Listing
   const i = input as Partial<Listing>;
   const name = typeof i.name === "string" ? i.name.trim() : "";
   const upstreamUrl = typeof i.upstreamUrl === "string" ? i.upstreamUrl.trim() : "";
-  const priceUsdc = Number(i.priceUsdc);
-  const isAddr = (s: unknown): s is `0x${string}` =>
-    typeof s === "string" && /^0x[0-9a-fA-F]{40}$/.test(s);
+  const priceCspr = Number(i.priceCspr);
+  const isAddr = (s: unknown): s is CasperAccount => typeof s === "string" && isCasperAccount(s);
 
   if (!name) return { error: "name required" };
   if (!/^https?:\/\//.test(upstreamUrl)) return { error: "upstreamUrl must be http(s)" };
-  if (!(priceUsdc > 0)) return { error: "priceUsdc must be > 0" };
-  if (!isAddr(i.payTo)) return { error: "payTo must be a 0x address" };
-  if (!isAddr(i.owner)) return { error: "owner must be a 0x address" };
+  if (!(priceCspr >= MIN_TRANSFER_CSPR)) {
+    return { error: `priceCspr must be >= ${MIN_TRANSFER_CSPR} (Casper's native-transfer minimum)` };
+  }
+  if (!isAddr(i.payTo)) return { error: "payTo must be a Casper account-hash address" };
+  if (!isAddr(i.owner)) return { error: "owner must be a Casper account-hash address" };
 
   const kind = i.kind === "mcp" ? "mcp" : "http";
+  const category: Category = ["ai", "data", "tool"].includes(i.category as string) ? (i.category as Category) : "other";
   const authValue = typeof i.authHeaderValue === "string" ? i.authHeaderValue.trim() : "";
   const authName =
     typeof i.authHeaderName === "string" && i.authHeaderName.trim() ? i.authHeaderName.trim() : "Authorization";
@@ -96,13 +124,14 @@ export async function createListing(input: unknown): Promise<{ listing?: Listing
     authHeaderName: authValue ? authName : undefined,
     authHeaderValue: authValue || undefined,
     kind,
+    category,
     method: kind === "mcp" ? "POST" : i.method === "GET" ? "GET" : "POST",
-    priceUsdc,
+    priceCspr,
     payTo: i.payTo,
     owner: i.owner,
     createdAt: Date.now(),
     calls: 0,
-    revenueUsdc: 0,
+    revenueCspr: 0,
   };
   if (redis) await redis.hset(LKEY, { [listing.id]: listing });
   else memStore.set(listing.id, listing);
@@ -126,12 +155,65 @@ export async function recordCall(id: string): Promise<void> {
     const l = await redis.hget<Listing>(LKEY, id);
     if (!l) return;
     l.calls += 1;
-    l.revenueUsdc = Math.round((l.revenueUsdc + l.priceUsdc) * 1e6) / 1e6;
+    l.revenueCspr = Math.round((l.revenueCspr + l.priceCspr) * 1e6) / 1e6;
     await redis.hset(LKEY, { [id]: l });
   } else {
     const l = memStore.get(id);
     if (!l) return;
     l.calls += 1;
-    l.revenueUsdc = Math.round((l.revenueUsdc + l.priceUsdc) * 1e6) / 1e6;
+    l.revenueCspr = Math.round((l.revenueCspr + l.priceCspr) * 1e6) / 1e6;
+  }
+}
+
+export async function listPipelines(): Promise<Pipeline[]> {
+  const all = redis
+    ? Object.values((await redis.hgetall<Record<string, Pipeline>>(PKEY)) ?? {})
+    : [...memPipelines.values()];
+  return all.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function getPipeline(id: string): Promise<Pipeline | undefined> {
+  if (redis) return (await redis.hget<Pipeline>(PKEY, id)) ?? undefined;
+  return memPipelines.get(id);
+}
+
+export async function createPipeline(input: unknown): Promise<{ pipeline?: Pipeline; error?: string }> {
+  const i = input as Partial<Pipeline>;
+  const name = typeof i.name === "string" ? i.name.trim() : "";
+  const isAddr = (s: unknown): s is CasperAccount => typeof s === "string" && isCasperAccount(s);
+  const steps = Array.isArray(i.steps) ? i.steps : [];
+
+  if (!name) return { error: "name required" };
+  if (!isAddr(i.owner)) return { error: "owner must be a Casper account-hash address" };
+  if (steps.length < 2) return { error: "a composition needs at least 2 steps" };
+  for (const s of steps) {
+    if (typeof s?.listingId !== "string" || !s.listingId) return { error: "each step needs a listingId" };
+    if (typeof s?.bodyTemplate !== "string") return { error: "each step needs a bodyTemplate (JSON string)" };
+    if (!(await getListing(s.listingId))) return { error: `unknown listing in step: ${s.listingId}` };
+  }
+
+  const pipeline: Pipeline = {
+    id: randomBytes(6).toString("hex"),
+    name,
+    description: typeof i.description === "string" ? i.description.trim() : "",
+    owner: i.owner,
+    steps: steps.map((s) => ({ listingId: s.listingId, bodyTemplate: s.bodyTemplate })),
+    createdAt: Date.now(),
+    calls: 0,
+  };
+  if (redis) await redis.hset(PKEY, { [pipeline.id]: pipeline });
+  else memPipelines.set(pipeline.id, pipeline);
+  return { pipeline };
+}
+
+export async function recordPipelineCall(id: string): Promise<void> {
+  if (redis) {
+    const p = await redis.hget<Pipeline>(PKEY, id);
+    if (!p) return;
+    p.calls += 1;
+    await redis.hset(PKEY, { [id]: p });
+  } else {
+    const p = memPipelines.get(id);
+    if (p) p.calls += 1;
   }
 }

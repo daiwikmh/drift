@@ -1,104 +1,80 @@
 // Headless x402 buyer — how an AGENT pays, no wallet popup, no human.
-// It signs the EIP-3009 USDC authorization with a raw key and replays with an
-// X-PAYMENT header. Same gateway endpoint the dashboard uses; only the signer
-// differs (a held key instead of an injected browser wallet).
+// It signs a real native CSPR transfer with a raw Casper key (PEM file) and
+// replays with a PAYMENT-SIGNATURE header. Same gateway endpoint the
+// dashboard uses; only the signer differs (a held key instead of the Casper
+// Wallet browser extension). The gateway submits the signed transaction and
+// verifies it on-chain — same as it does for a browser buyer.
 //
-// Usage (from apps/web, so viem resolves):
-//   TEST_PRIVATE_KEY=0x<agent-key> node scripts/x402-buy.mjs \
-//     https://drift-trader.vercel.app/api/call/<listing-id> '{"prompt":"hello"}'
+// Usage (from apps/web, so deps resolve):
+//   CLIENT_PRIVATE_KEY_PATH=./agent.pem CLIENT_KEY_ALGO=ed25519 \
+//     node scripts/x402-buy.mjs <gatewayUrl> [jsonBody]
 //
-// The key stays in YOUR shell/env — never commit it. The wallet needs a little
-// Fuji USDC (the facilitator pays the gas).
-import { createPublicClient, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { avalancheFuji } from "viem/chains";
+// The key stays on YOUR disk — never commit it. See scripts/gen-casper-key.mjs
+// to generate one.
+import { readFile } from "fs/promises";
+import casperSdk from "casper-js-sdk";
 
-const RPC = "https://api.avax-test.network/ext/bc/C/rpc";
-const USDC = "0x5425890298aed601595a70AB815c96711a31Bc65";
-const CHAIN_ID = 43113;
+const { PrivateKey, KeyAlgorithm, NativeTransferBuilder, AccountHash } = casperSdk;
 
-const pk = process.env.TEST_PRIVATE_KEY;
+const pemPath = process.env.CLIENT_PRIVATE_KEY_PATH;
+const algo = process.env.CLIENT_KEY_ALGO === "secp256k1" ? KeyAlgorithm.SECP256K1 : KeyAlgorithm.ED25519;
 const endpoint = process.argv[2];
 const reqBody = process.argv[3] ?? '{"prompt":"hello from an agent"}';
-if (!pk || !endpoint) {
-  console.error("usage: TEST_PRIVATE_KEY=0x… node scripts/x402-buy.mjs <gatewayUrl> [jsonBody]");
+if (!pemPath || !endpoint) {
+  console.error("usage: CLIENT_PRIVATE_KEY_PATH=./agent.pem node scripts/x402-buy.mjs <gatewayUrl> [jsonBody]");
   process.exit(1);
 }
 
-const account = privateKeyToAccount(pk.startsWith("0x") ? pk : `0x${pk}`);
-const pub = createPublicClient({ chain: avalancheFuji, transport: http(RPC) });
+const pemContent = await readFile(pemPath, "utf-8");
+const privateKey = PrivateKey.fromPem(pemContent, algo);
+const accountHash = "00" + privateKey.publicKey.accountHash().toHex();
 const headers = { "Content-Type": "application/json" };
 
-// 1) Unpaid request → expect 402 with payment terms.
+// 1) Unpaid request → expect 402 with payment terms (base64 in PAYMENT-REQUIRED).
 let r = await fetch(endpoint, { method: "POST", headers, body: reqBody });
 if (r.status !== 402) {
   console.log(`no 402 (HTTP ${r.status}) →`, await r.text());
   process.exit(0);
 }
-const challenge = await r.json();
-const terms = (challenge.accepts ?? []).find((a) => a.scheme === "exact");
-if (!terms) {
-  console.error("endpoint does not accept USDC (exact)");
+const requiredHeader = r.headers.get("PAYMENT-REQUIRED");
+if (!requiredHeader) {
+  console.error("402 response missing PAYMENT-REQUIRED header");
   process.exit(1);
 }
-console.log(`402 → pay ${Number(terms.maxAmountRequired) / 1e6} USDC to ${terms.payTo}`);
+const paymentRequired = JSON.parse(Buffer.from(requiredHeader, "base64").toString());
+const requirements = (paymentRequired.accepts ?? []).find((a) => a.scheme === "native");
+if (!requirements) {
+  console.error("endpoint does not accept native CSPR");
+  process.exit(1);
+}
+console.log(`402 → pay ${Number(requirements.amount) / 1e9} CSPR to ${requirements.payTo}`);
 
-// 2) Read the USDC EIP-712 domain so the signature hashes identically to settlement.
-const abi = [
-  { type: "function", name: "name", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
-  { type: "function", name: "version", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
-];
-const name = await pub.readContract({ address: USDC, abi, functionName: "name" });
-let version = "2";
-try {
-  version = await pub.readContract({ address: USDC, abi, functionName: "version" });
-} catch {}
+// 2) Build + sign a plain native transfer — programmatically, no popup.
+const chainName = requirements.network.split(":").slice(1).join(":");
+const transaction = new NativeTransferBuilder()
+  .from(privateKey.publicKey)
+  .targetAccountHash(AccountHash.fromString(requirements.payTo))
+  .amount(requirements.amount)
+  .id(Date.now())
+  .chainName(chainName)
+  .payment(100_000_000)
+  .build();
+transaction.sign(privateKey);
 
-// 3) Build + sign the TransferWithAuthorization — programmatically, no popup.
-const now = Math.floor(Date.now() / 1000);
-const nonce = "0x" + [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, "0")).join("");
-const authorization = {
-  from: account.address,
-  to: terms.payTo,
-  value: terms.maxAmountRequired,
-  validAfter: "0",
-  validBefore: String(now + (terms.maxTimeoutSeconds ?? 120)),
-  nonce,
+// 3) Replay with the PAYMENT-SIGNATURE header → gateway submits + verifies + serves.
+const paymentPayload = {
+  x402Version: paymentRequired.x402Version,
+  accepted: requirements,
+  payload: { transaction: transaction.toJSON(), payer: accountHash },
 };
-const signature = await account.signTypedData({
-  domain: { name, version, chainId: CHAIN_ID, verifyingContract: USDC },
-  types: {
-    TransferWithAuthorization: [
-      { name: "from", type: "address" },
-      { name: "to", type: "address" },
-      { name: "value", type: "uint256" },
-      { name: "validAfter", type: "uint256" },
-      { name: "validBefore", type: "uint256" },
-      { name: "nonce", type: "bytes32" },
-    ],
-  },
-  primaryType: "TransferWithAuthorization",
-  message: {
-    from: authorization.from,
-    to: authorization.to,
-    value: BigInt(authorization.value),
-    validAfter: 0n,
-    validBefore: BigInt(authorization.validBefore),
-    nonce,
-  },
-});
+const header = Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
 
-// 4) Replay with the X-PAYMENT header → gateway verifies, settles, serves.
-const xPayment = Buffer.from(
-  JSON.stringify({ x402Version: 1, scheme: "exact", network: terms.network, payload: { signature, authorization } })
-).toString("base64");
-
-r = await fetch(endpoint, { method: "POST", headers: { ...headers, "X-PAYMENT": xPayment }, body: reqBody });
+r = await fetch(endpoint, { method: "POST", headers: { ...headers, "PAYMENT-SIGNATURE": header }, body: reqBody });
 console.log(`paid call → HTTP ${r.status}`);
-const pr = r.headers.get("x-payment-response");
+const pr = r.headers.get("PAYMENT-RESPONSE");
 if (pr) {
   try {
-    console.log("settled tx:", JSON.parse(Buffer.from(pr, "base64").toString()).txHash);
+    console.log("settled tx:", JSON.parse(Buffer.from(pr, "base64").toString()).transaction);
   } catch {}
 }
 console.log("response:", await r.text());

@@ -1,11 +1,11 @@
 export const site = {
   name: "DRIFT",
-  tagline: "Compute, paid per call — between agents, on Avalanche.",
+  tagline: "Any API or MCP server, paid per call — on Casper.",
   nav: [
     { label: "How it works", href: "#how" },
     { label: "Standards", href: "#standards" },
     { label: "Marketplace", href: "/dashboard" },
   ],
   github: "https://github.com",
-  explorer: "https://testnet.snowtrace.io",
+  explorer: "https://testnet.cspr.live",
 };

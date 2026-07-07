@@ -1,8 +1,11 @@
 // Browser client for the DRIFT pay-per-call registry. Backed by Next.js API routes
 // (/api/listings, /api/call/[id]) — no relay required, works on Vercel. Owners
-// list any HTTP/MCP endpoint at one USDC price; the gateway x402-gates it and
+// list any HTTP/MCP endpoint at one CSPR price; the gateway x402-gates it and
 // replays the call to the upstream URL, which is never exposed to buyers.
-import { payAndCall, type PaidResponse } from "./x402usdc";
+import { payAndCall, type PaidResponse } from "./x402casper";
+import type { CasperAccount } from "./casper";
+
+export type Category = "ai" | "data" | "tool" | "other";
 
 export type Listing = {
   id: string;
@@ -10,12 +13,13 @@ export type Listing = {
   description: string;
   kind: "http" | "mcp";
   hasAuth: boolean;
-  priceUsdc: number;
-  payTo: `0x${string}`;
-  owner: `0x${string}`;
+  category: Category;
+  priceCspr: number;
+  payTo: CasperAccount;
+  owner: CasperAccount;
   method: string;
   calls: number;
-  revenueUsdc: number;
+  revenueCspr: number;
   createdAt: number;
 };
 
@@ -25,11 +29,12 @@ export type NewListing = {
   upstreamUrl: string;
   kind: "http" | "mcp";
   method: string;
+  category: Category;
   authHeaderName?: string;
   authHeaderValue?: string;
-  priceUsdc: number;
-  payTo: `0x${string}`;
-  owner: `0x${string}`;
+  priceCspr: number;
+  payTo: CasperAccount;
+  owner: CasperAccount;
 };
 
 export async function listListings(): Promise<Listing[]> {
@@ -50,7 +55,7 @@ export async function registerListing(input: NewListing): Promise<Listing> {
   return (j as { listing: Listing }).listing;
 }
 
-// Pay (gasless USDC, one signature) and invoke a listing. Body forwarded verbatim.
-export async function callListing(id: string, body: unknown, account: `0x${string}`): Promise<PaidResponse> {
+// Pay (signed native CSPR transfer) and invoke a listing. Body forwarded verbatim.
+export async function callListing(id: string, body: unknown, account: CasperAccount): Promise<PaidResponse> {
   return payAndCall(`/api/call/${id}`, body, account);
 }

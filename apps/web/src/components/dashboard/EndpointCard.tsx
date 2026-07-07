@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { btnPrimary, btnGhost, fieldCls, microLabel } from "@/components/dashboard/ui";
-import { EXPLORER } from "@/lib/market";
+import { EXPLORER } from "@/lib/casper";
 import { callListing, type Listing } from "@/lib/listings";
+import type { CasperAccount } from "@/lib/casper";
 
 // A single pay-per-call listing: shows price/usage/type, expands to pay-and-call.
 // Shared by the Pay-per-call page (your own listings) and the Marketplace tab.
@@ -15,7 +16,7 @@ export function ListingCard({
   mine,
 }: {
   listing: Listing;
-  account: `0x${string}` | null;
+  account: CasperAccount | null;
   connect: () => void;
   connecting: boolean;
   mine: boolean;
@@ -63,9 +64,9 @@ export function ListingCard({
           </div>
           {listing.description && <p className="mt-1 text-[13px] text-white/45">{listing.description}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-white/35">
-            <span className="font-mono text-[#9aa8f0]">${listing.priceUsdc.toFixed(2)} / call</span>
+            <span className="font-mono text-[#9aa8f0]">{listing.priceCspr.toFixed(2)} CSPR / call</span>
             <span>{listing.calls} calls served</span>
-            <span>{listing.revenueUsdc.toFixed(2)} USDC earned</span>
+            <span>{listing.revenueCspr.toFixed(2)} CSPR earned</span>
             <span className="font-mono">{listing.kind === "mcp" ? "MCP" : listing.method}</span>
             {listing.hasAuth && <span className="font-mono text-white/30">keyed</span>}
           </div>
@@ -95,9 +96,9 @@ export function ListingCard({
               />
               <div className="mt-3 flex items-center gap-3">
                 <button onClick={run} disabled={busy} className={btnPrimary}>
-                  {busy ? "Paying…" : `Pay $${listing.priceUsdc.toFixed(2)} & call`}
+                  {busy ? "Paying…" : `Pay ${listing.priceCspr.toFixed(2)} CSPR & call`}
                 </button>
-                <span className="text-[12px] text-white/35">Gasless USDC — one signature, no transaction to send.</span>
+                <span className="text-[12px] text-white/35">One signed native CSPR transfer — you pay the network fee.</span>
               </div>
               {err && <p className="mt-3 text-[13px] text-[#e84142]">{err}</p>}
               {result && (
@@ -108,7 +109,7 @@ export function ListingCard({
                   </pre>
                   {result.txHash && (
                     <a
-                      href={`${EXPLORER}/tx/${result.txHash}`}
+                      href={`${EXPLORER}/deploy/${result.txHash}`}
                       target="_blank"
                       rel="noreferrer"
                       className="mt-2 inline-block text-[12px] text-[#9aa8f0] hover:underline"

@@ -66,8 +66,8 @@ export function IntegrationsSection() {
           <div className="flex flex-wrap gap-12">
             {[
               { value: "x402", label: "Payment rail" },
-              { value: "ERC-8004", label: "Identity & reputation" },
-              { value: "REST", label: "OpenAI-compatible" },
+              { value: "CSPR", label: "Native, on Casper" },
+              { value: "REST", label: "Any HTTP API or MCP" },
             ].map((stat) => (
               <div key={stat.label} className="flex items-baseline gap-3">
                 <span className="text-3xl font-display">{stat.value}</span>

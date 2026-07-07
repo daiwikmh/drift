@@ -5,16 +5,17 @@ import {
   decodePayment,
   facilitatorVerify,
   facilitatorSettle,
-} from "@/lib/server/x402";
+} from "@/lib/server/x402casper";
 import { callMcp } from "@/lib/server/mcp";
 
-const X402_VERSION = 1;
+const X402_VERSION = 2;
 
-function need(requirements: ReturnType<typeof buildRequirements>, error: string) {
-  return NextResponse.json(
-    { x402Version: X402_VERSION, accepts: [requirements], error },
-    { status: 402 }
-  );
+function need(requirements: ReturnType<typeof buildRequirements>, resource: string, error: string) {
+  const paymentRequired = { x402Version: X402_VERSION, error, resource: { url: resource }, accepts: [requirements] };
+  return NextResponse.json(paymentRequired, {
+    status: 402,
+    headers: { "PAYMENT-REQUIRED": Buffer.from(JSON.stringify(paymentRequired)).toString("base64") },
+  });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,40 +27,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const resource = `${req.nextUrl.origin}/api/call/${id}`;
   const requirements = buildRequirements({
-    priceUsdc: listing.priceUsdc,
+    priceCspr: listing.priceCspr,
     payTo: listing.payTo,
     resource,
     description: listing.description || listing.name,
   });
 
-  const header = req.headers.get("x-payment");
-  if (!header) return need(requirements, "payment required");
+  const header = req.headers.get("payment-signature");
+  if (!header) return need(requirements, resource, "payment required");
 
   const payment = decodePayment(header);
-  if (!payment || payment.scheme !== "exact") {
-    return need(requirements, "this endpoint accepts USDC via x402 (exact)");
+  if (!payment || payment.accepted?.scheme !== "native") {
+    return need(requirements, resource, "this endpoint accepts native CSPR via x402");
   }
 
-  const nonce = payment.payload.authorization.nonce;
-  if (await isNonceUsed(nonce)) return need(requirements, "payment already used");
-
   const verified = await facilitatorVerify(payment, requirements);
-  if (!verified.isValid) return need(requirements, verified.invalidReason ?? "payment invalid");
+  if (!verified.isValid || !verified.txHash) return need(requirements, resource, verified.invalidReason ?? "payment invalid");
+
+  const txHash = verified.txHash;
+  if (await isNonceUsed(txHash)) return need(requirements, resource, "payment already used");
 
   const settled = await facilitatorSettle(payment, requirements);
-  if (!settled.success) return need(requirements, settled.error ?? "settlement failed");
-  await markNonce(nonce);
+  if (!settled.success) return need(requirements, resource, settled.error ?? "settlement failed");
+  await markNonce(txHash);
 
   // Payment is settled — fulfil the call. The settlement receipt rides back on
   // every response (success or upstream error) so the buyer can prove they paid.
   const paymentResponse = Buffer.from(
-    JSON.stringify({ success: true, txHash: settled.txHash, payer: settled.payer })
+    JSON.stringify({ success: true, transaction: settled.txHash, payer: settled.payer, network: requirements.network })
   ).toString("base64");
   const outHeaders = (contentType: string) => ({
     "Content-Type": contentType,
-    "X-PAYMENT-RESPONSE": paymentResponse,
+    "PAYMENT-RESPONSE": paymentResponse,
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+    "Access-Control-Expose-Headers": "PAYMENT-RESPONSE",
   });
 
   const rawBody = await req.text().catch(() => "");
@@ -127,8 +128,8 @@ export async function OPTIONS() {
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-PAYMENT",
-      "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+      "Access-Control-Allow-Headers": "Content-Type, PAYMENT-SIGNATURE",
+      "Access-Control-Expose-Headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE",
     },
   });
 }

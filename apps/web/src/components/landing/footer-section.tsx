@@ -7,12 +7,12 @@ const footerLinks = {
     { name: "How it works", href: "#how-it-works" },
     { name: "Settlement", href: "#infra" },
     { name: "Integrations", href: "#integrations" },
-    { name: "Marketplace", href: "/dashboard/marketplace" },
+    { name: "Marketplace", href: "/dashboard" },
   ],
   Resources: [
     { name: "Documentation", href: "#developers" },
     { name: "Provider guide", href: "#developers" },
-    { name: "Snowtrace", href: "https://testnet.snowtrace.io" },
+    { name: "CSPR.live", href: "https://testnet.cspr.live" },
   ],
 };
 
@@ -97,11 +97,11 @@ export function FooterSection() {
             <div className="col-span-2">
               <a href="/" className="inline-flex items-center gap-2 mb-6">
                 <span className="text-2xl font-display text-white">DRIFT</span>
-                <span className="text-xs text-white/40 font-mono">AVAX</span>
+                <span className="text-xs text-white/40 font-mono">CSPR</span>
               </a>
 
               <p className="text-white/50 leading-relaxed mb-8 max-w-xs text-sm">
-                Buy and sell LLM inference between agents on Avalanche. Pay per call in native AVAX or gasless USDC.
+                List any HTTP API or MCP server at a price. Buyers pay per call in native CSPR on Casper.
               </p>
             </div>
 
@@ -135,7 +135,7 @@ export function FooterSection() {
           <div className="flex items-center gap-4 text-sm text-white/30">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#eca8d6]" />
-              Live on Avalanche Fuji
+              Live on Casper Testnet
             </span>
           </div>
         </div>

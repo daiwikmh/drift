@@ -1,11 +1,13 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { connectWallet, usdcAvaxBalances } from "@/lib/market";
+import { connectWallet } from "@/lib/x402casper";
+import { csprBalance } from "@/lib/casperBalance";
+import type { CasperAccount } from "@/lib/casper";
 
 type Ctx = {
-  account: `0x${string}` | null;
-  balances: { avax: number; usdc: number } | null;
+  account: CasperAccount | null;
+  balances: { cspr: number } | null;
   connecting: boolean;
   error: string | null;
   connect: () => Promise<void>;
@@ -24,15 +26,15 @@ const WalletCtx = createContext<Ctx>({
 });
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [account, setAccount] = useState<`0x${string}` | null>(null);
-  const [balances, setBalances] = useState<{ avax: number; usdc: number } | null>(null);
+  const [account, setAccount] = useState<CasperAccount | null>(null);
+  const [balances, setBalances] = useState<{ cspr: number } | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshBalances = () => {
     if (!account) return;
-    usdcAvaxBalances(account)
-      .then(setBalances)
+    csprBalance(account)
+      .then((cspr) => setBalances({ cspr }))
       .catch(() => {});
   };
 

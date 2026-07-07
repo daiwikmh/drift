@@ -3,10 +3,10 @@
 import { useEffect, useState, useRef } from "react";
 
 const regions = [
-  { name: "Native AVAX", detail: "default · ~1s finality", status: "live" },
-  { name: "USDC (EIP-3009)", detail: "gasless for the payer", status: "live" },
-  { name: "ERC-8004 Identity", detail: "on-chain registry", status: "live" },
-  { name: "ERC-8004 Reputation", detail: "feedback after each call", status: "live" },
+  { name: "Native CSPR", detail: "one signed transfer", status: "live" },
+  { name: "Casper Wallet", detail: "browser extension", status: "live" },
+  { name: "On-chain verify", detail: "recorded transfer effect", status: "live" },
+  { name: "x402 protocol", detail: "HTTP 402 pay-to-unlock", status: "live" },
 ];
 
 export function InfrastructureSection() {
@@ -72,9 +72,9 @@ export function InfrastructureSection() {
               <p className={`mt-8 text-xl text-muted-foreground leading-relaxed max-w-lg transition-all duration-1000 delay-100 ${
                 isVisible ? "opacity-100" : "opacity-0"
               }`}>
-                Every paid call settles on Avalanche Fuji. Native AVAX clears in one
-                transfer the provider verifies on-chain — or the payer signs a gasless
-                USDC authorization.
+                Every paid call settles on Casper Testnet. The payer signs a real native CSPR
+                transfer with Casper Wallet, the gateway submits it and reads back the
+                recorded transfer effect before proxying the call.
               </p>
             </div>
           </div>
@@ -149,7 +149,7 @@ export function InfrastructureSection() {
                 <span className="text-2xl text-muted-foreground">finality</span>
               </div>
               <p className="text-muted-foreground max-w-md">
-                Payments clear on Avalanche in roughly a second — no escrow, no invoice, no middleman.
+                Payments clear on Casper in roughly a second — no escrow, no invoice, no middleman.
               </p>
             </div>
           </div>
@@ -160,14 +160,14 @@ export function InfrastructureSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
             }`}>
               <span className="text-5xl lg:text-6xl font-display">1 tx</span>
-              <span className="block text-sm text-muted-foreground mt-2">Native AVAX settlement</span>
+              <span className="block text-sm text-muted-foreground mt-2">Native CSPR settlement</span>
             </div>
-            
+
             <div className={`p-8 border border-foreground/10 bg-foreground/[0.02] transition-all duration-700 delay-200 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
             }`}>
-              <span className="text-5xl lg:text-6xl font-display">0 gas</span>
-              <span className="block text-sm text-muted-foreground mt-2">USDC via EIP-3009</span>
+              <span className="text-5xl lg:text-6xl font-display">1 sig</span>
+              <span className="block text-sm text-muted-foreground mt-2">Signed via Casper Wallet</span>
             </div>
           </div>
         </div>

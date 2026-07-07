@@ -4,27 +4,22 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { RELAY_HTTP } from "@/lib/market";
-import { NETWORKS } from "@/lib/network";
-import { useNetwork } from "./NetworkContext";
 import { ProfileMenu } from "./ProfileMenu";
 
 const nav = [
   { label: "Pay-per-call APIs", href: "/dashboard", icon: "bolt" },
-  { label: "Playground", href: "/dashboard/playground", icon: "play" },
-  { label: "Live network", href: "/dashboard/network", icon: "radio" },
   { label: "Marketplace", href: "/dashboard/marketplace", icon: "grid" },
-  { label: "My signals", href: "/dashboard/signals", icon: "pulse" },
-  { label: "My identity", href: "/dashboard/identity", icon: "badge" },
+  { label: "AI", href: "/dashboard/ai", icon: "spark" },
+  { label: "Composition", href: "/dashboard/composition", icon: "layers" },
+  { label: "Playground", href: "/dashboard/playground", icon: "play" },
 ];
 
 const paths: Record<string, string> = {
-  radio: "M5 12a7 7 0 0 1 14 0M8.5 12a3.5 3.5 0 0 1 7 0M12 12h.01M5 19a14 14 0 0 1 14 0",
-  grid: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
   bolt: "M13 2 4 14h7l-1 8 9-12h-7z",
-  pulse: "M3 12h4l2 6 4-14 2 8h6",
-  badge: "M12 2 4 6v6c0 5 3.4 7.3 8 10 4.6-2.7 8-5 8-10V6zM9 12l2 2 4-4",
+  grid: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
   play: "M8 5v14l11-7z",
+  spark: "M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9l-2.8 2.8",
+  layers: "M12 3 2 8l10 5 10-5-10-5ZM2 16l10 5 10-5M2 12l10 5 10-5",
 };
 
 function Icon({ name }: { name: string }) {
@@ -45,26 +40,10 @@ function Icon({ name }: { name: string }) {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { net, cfg, setNet } = useNetwork();
   const [collapsed, setCollapsed] = useState(false);
-  const [online, setOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
     setCollapsed(localStorage.getItem("drift.sidebar") === "1");
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    const ping = () =>
-      fetch(`${RELAY_HTTP}/providers`)
-        .then((r) => alive && setOnline(r.ok))
-        .catch(() => alive && setOnline(false));
-    ping();
-    const t = setInterval(ping, 8000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
   }, []);
 
   const toggle = () => {
@@ -86,51 +65,7 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {/* network toggle */}
-      <div className={`pt-2 ${collapsed ? "px-2" : "px-4"}`}>
-        {collapsed ? (
-          <button
-            onClick={() => setNet(net === "testnet" ? "mainnet" : "testnet")}
-            title={`${cfg.label} — click to switch`}
-            className={`mx-auto flex h-7 w-7 items-center justify-center rounded-lg border text-[11px] font-bold ${
-              net === "mainnet" ? "border-[#e84142]/50 text-[#e84142]" : "border-emerald-400/40 text-emerald-400"
-            }`}
-          >
-            {net === "mainnet" ? "M" : "T"}
-          </button>
-        ) : (
-          <div className="flex rounded-lg border border-white/10 bg-white/[0.03] p-0.5 text-[12px]">
-            {(["testnet", "mainnet"] as const).map((n) => (
-              <button
-                key={n}
-                onClick={() => setNet(n)}
-                className={`flex-1 rounded-md px-2 py-1 font-medium transition ${
-                  net === n
-                    ? n === "mainnet"
-                      ? "bg-[#e84142]/15 text-[#e84142]"
-                      : "bg-emerald-400/15 text-emerald-400"
-                    : "text-white/40 hover:text-white/70"
-                }`}
-              >
-                {NETWORKS[n].label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className={`pb-3 pt-2 ${collapsed ? "flex justify-center px-2" : "px-5"}`}>
-        {collapsed ? (
-          <span className={`h-2 w-2 rounded-full ${online ? "bg-emerald-400" : "bg-red-500"}`} title="relay" />
-        ) : (
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.15em] text-white/30">
-            <span className={`h-1.5 w-1.5 rounded-full ${online ? "bg-emerald-400" : online === false ? "bg-red-500" : "bg-white/30"}`} />
-            {online ? "relay online" : online === false ? "relay offline" : "connecting…"}
-          </div>
-        )}
-      </div>
-
-      <nav className={`flex-1 space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+      <nav className={`flex-1 space-y-0.5 pt-2 ${collapsed ? "px-2" : "px-3"}`}>
         {nav.map((item) => {
           const active = pathname === item.href;
           return (

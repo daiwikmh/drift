@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useWallet } from "./WalletContext";
-import { useNetwork } from "./NetworkContext";
+import { EXPLORER } from "@/lib/casper";
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
@@ -14,7 +14,6 @@ function avatarStyle(addr: string): React.CSSProperties {
 
 export function ProfileMenu({ collapsed }: { collapsed: boolean }) {
   const { account, balances, connect, connecting, disconnect } = useWallet();
-  const { cfg } = useNetwork();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -61,9 +60,7 @@ export function ProfileMenu({ collapsed }: { collapsed: boolean }) {
             <div className="text-[11px] uppercase tracking-[0.12em] text-white/35">Wallet</div>
             <div className="mt-1 font-mono text-[12px] text-white/80">{short(account)}</div>
             {balances && (
-              <div className="mt-2 font-mono text-[12px] text-white/45">
-                {balances.avax.toFixed(3)} AVAX · {balances.usdc.toFixed(2)} USDC
-              </div>
+              <div className="mt-2 font-mono text-[12px] text-white/45">{balances.cspr.toFixed(2)} CSPR</div>
             )}
           </div>
           <button onClick={copy} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[12.5px] text-white/70 transition hover:bg-white/[0.05]">
@@ -73,7 +70,7 @@ export function ProfileMenu({ collapsed }: { collapsed: boolean }) {
             {copied ? "Copied!" : "Copy address"}
           </button>
           <a
-            href={`${cfg.explorer}/address/${account}`}
+            href={`${EXPLORER}/account/${account}`}
             target="_blank"
             rel="noreferrer"
             className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[12.5px] text-white/70 transition hover:bg-white/[0.05]"
@@ -81,7 +78,7 @@ export function ProfileMenu({ collapsed }: { collapsed: boolean }) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-4 w-4">
               <path d="M14 4h6v6M20 4l-8 8M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6" />
             </svg>
-            View on {cfg.short === "Fuji" ? "Snowtrace" : "Explorer"}
+            View on CSPR.live
           </a>
           <button
             onClick={() => {
@@ -110,7 +107,7 @@ export function ProfileMenu({ collapsed }: { collapsed: boolean }) {
           <span className="min-w-0 flex-1">
             <span className="block truncate font-mono text-[12px] text-white/80">{short(account)}</span>
             <span className="block truncate text-[10.5px] text-white/35">
-              {balances ? `${balances.usdc.toFixed(2)} USDC` : "connected"}
+              {balances ? `${balances.cspr.toFixed(2)} CSPR` : "connected"}
             </span>
           </span>
         )}

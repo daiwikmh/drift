@@ -9,7 +9,7 @@ const instrumentSerif = Instrument_Serif({ variable: "--font-instrument-serif", 
 export const metadata: Metadata = {
   title: "DRIFT",
   description:
-    "Buy and sell LLM inference between agents on Avalanche. Pay native AVAX (or gasless USDC) to unlock a call. Identity & reputation on ERC-8004, payment over x402.",
+    "List any HTTP API or MCP server at a price. Buyers pay per call in native CSPR on Casper — no keys, no subscriptions. Payment over x402.",
   icons: { icon: "/logo.png" },
 };
 

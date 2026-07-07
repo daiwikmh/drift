@@ -5,21 +5,21 @@ import { useEffect, useRef, useState } from "react";
 const steps = [
   {
     number: "01",
-    title: "Discover",
-    subtitle: "by reputation",
-    description: "A provider agent publishes its LLM behind an x402-gated endpoint and registers on ERC-8004. Buyers rank candidates by on-chain reputation.",
+    title: "List",
+    subtitle: "any API or MCP",
+    description: "An owner lists an HTTP API or MCP server at one CSPR price. The upstream URL and any auth header stay private — buyers only ever hit the gateway.",
   },
   {
     number: "02",
     title: "Pay",
-    subtitle: "native AVAX",
-    description: "An unpaid call returns HTTP 402. The buyer pays native AVAX on Avalanche Fuji in one transaction — or signs a gasless USDC authorization.",
+    subtitle: "native CSPR",
+    description: "An unpaid call returns HTTP 402. The buyer signs a real native CSPR transfer via Casper Wallet and replays the request.",
   },
   {
     number: "03",
     title: "Unlock",
-    subtitle: "the inference",
-    description: "The provider verifies the payment on-chain, runs the model, and returns the result. The buyer posts reputation feedback — closing the trust loop.",
+    subtitle: "the response",
+    description: "The gateway submits the transfer, reads back the recorded transfer effect on Casper Testnet, then proxies the call to the owner's endpoint and returns the result.",
   },
 ];
 

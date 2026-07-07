@@ -51,14 +51,14 @@ export function CtaSection() {
               {/* Left content */}
               <div className="flex-1">
                 <h2 className="text-6xl md:text-7xl lg:text-[72px] font-display tracking-tight mb-8 leading-[0.95]">
-                  Ready to trade
+                  Ready to list
                   <br />
-                  compute?
+                  your API?
                 </h2>
 
                 <p className="text-xl text-muted-foreground mb-12 leading-relaxed max-w-xl">
-                  Discover providers by reputation, pay per call in AVAX or gasless USDC,
-                  and unlock inference — on Avalanche.
+                  List any HTTP API or MCP server, pay or get paid per call in native CSPR,
+                  and settle it — on Casper.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-start gap-4">
@@ -75,7 +75,7 @@ export function CtaSection() {
                 </div>
 
                 <p className="text-sm text-muted-foreground mt-8 font-mono">
-                  Live on Avalanche Fuji testnet
+                  Live on Casper Testnet
                 </p>
               </div>
 

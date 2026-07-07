@@ -8,16 +8,16 @@ const features = [
     description: "Return HTTP 402 and settle on-chain."
   },
   {
-    title: "ERC-8004 identity",
-    description: "On-chain discovery & reputation."
+    title: "Private upstream",
+    description: "Your URL and auth key stay hidden."
   },
   {
-    title: "Native AVAX or USDC",
-    description: "One transfer, or gasless EIP-3009."
+    title: "Native CSPR",
+    description: "One signed transfer via Casper Wallet."
   },
   {
-    title: "OpenAI-compatible",
-    description: "Wrap any model you already run."
+    title: "HTTP or MCP",
+    description: "List any API you already run."
   },
 ];
 
@@ -68,12 +68,12 @@ export function DevelopersSection() {
         >
           <span className="inline-flex items-center gap-3 text-sm font-mono text-muted-foreground mb-6">
             <span className="w-8 h-px bg-foreground/30" />
-            Developer SDK
+            For API owners
           </span>
           <h2 className="text-6xl md:text-7xl lg:text-[128px] font-display tracking-tight leading-[0.9]">
-            Sell inference.
+            List it.
             <br />
-            <span className="text-muted-foreground">Or buy it.</span>
+            <span className="text-muted-foreground">Or call it.</span>
           </h2>
         </div>
 
@@ -84,9 +84,9 @@ export function DevelopersSection() {
           }`}
         >
           <p className="text-xl text-muted-foreground mb-12 leading-relaxed max-w-md">
-            Wrap any model behind an x402-gated endpoint, register on ERC-8004, and
-            earn per call. Or discover providers and pay to unlock inference — all from
-            one SDK.
+            Wrap any HTTP API or MCP server behind an x402-gated endpoint and earn
+            per call. Or browse listed endpoints and pay to unlock one — all from
+            the dashboard.
           </p>
           <div className="grid grid-cols-2 gap-6">
             {features.map((feature, index) => (

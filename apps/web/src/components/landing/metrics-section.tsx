@@ -15,14 +15,14 @@ const metrics = [
     suffix: "s",
     prefix: "~",
     label: "Settlement finality",
-    sublabel: "Avalanche Fuji",
+    sublabel: "Casper Testnet",
   },
   {
-    value: 0,
-    suffix: " gas",
+    value: 1,
+    suffix: " tx",
     prefix: "",
-    label: "USDC option",
-    sublabel: "EIP-3009 · signed, not sent",
+    label: "Native CSPR settlement",
+    sublabel: "signed via Casper Wallet",
   },
 ];
 
@@ -259,7 +259,7 @@ export function MetricsSection() {
             <h2 className={`text-6xl md:text-7xl lg:text-[140px] font-display tracking-tight leading-[0.95] transition-all duration-1000 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
             }`}>
-              Metered compute,
+              Metered API calls,
               <br />
               <span className="text-muted-foreground">no middleman.</span>
             </h2>
@@ -328,11 +328,10 @@ export function MetricsSection() {
         <div className={`mt-16 pt-8 border-t border-foreground/10 flex flex-wrap items-center gap-x-12 gap-y-4 text-sm font-mono text-muted-foreground transition-all duration-1000 delay-500 ${
           isVisible ? "opacity-100" : "opacity-0"
         }`}>
-          <span>OpenAI-compatible</span>
-          <span>Anthropic</span>
-          <span>Mistral</span>
-          <span>Llama</span>
-          <span className="text-foreground">+ bring your own model</span>
+          <span>HTTP APIs</span>
+          <span>MCP servers</span>
+          <span>Streamable HTTP</span>
+          <span className="text-foreground">+ list anything with a price</span>
         </div>
       </div>
     </section>

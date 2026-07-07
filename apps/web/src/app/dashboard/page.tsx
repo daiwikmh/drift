@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useWallet } from "@/components/dashboard/WalletContext";
 import { Card, Stat, Section, btnPrimary, btnGhost, fieldCls, microLabel } from "@/components/dashboard/ui";
 import { ListingCard } from "@/components/dashboard/EndpointCard";
-import { listListings, registerListing, type Listing } from "@/lib/listings";
+import { listListings, registerListing, type Category, type Listing } from "@/lib/listings";
+import { MIN_TRANSFER_CSPR, type CasperAccount } from "@/lib/casper";
 
 export default function Endpoints() {
-  const { account, connect, connecting } = useWallet();
+  const { account, connect, connecting, error: walletError } = useWallet();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,16 +27,16 @@ export default function Endpoints() {
   }, [refresh]);
 
   const mine = account ? listings.filter((l) => l.owner.toLowerCase() === account.toLowerCase()) : [];
-  const myRevenue = mine.reduce((s, l) => s + l.revenueUsdc, 0);
+  const myRevenue = mine.reduce((s, l) => s + l.revenueCspr, 0);
   const myCalls = mine.reduce((s, l) => s + l.calls, 0);
 
   return (
     <div className="mx-auto max-w-4xl px-8 py-9">
       <h1 className="font-display text-2xl tracking-tight">Pay-per-call APIs</h1>
       <p className="mt-1 max-w-2xl text-sm text-white/45">
-        List any HTTP API or MCP server with one price. Buyers — humans or agents — pay per call in USDC with a single
-        signature: no keys, no gas, no subscription. The gateway settles on Avalanche Fuji and replays the call to your
-        endpoint. Browse and buy everyone&rsquo;s endpoints in the{" "}
+        List any HTTP API or MCP server with one price. Buyers — humans or agents — pay per call with a signed native
+        CSPR transfer: no keys, no subscription. The gateway settles on Casper Testnet and replays the call to your
+        endpoint. Browse everyone&rsquo;s listings in the{" "}
         <Link href="/dashboard/marketplace" className="text-[#9aa8f0] hover:underline">
           Marketplace
         </Link>
@@ -46,11 +47,11 @@ export default function Endpoints() {
         <div className="mt-7 grid grid-cols-3 gap-3">
           <Stat label="Your endpoints" value={mine.length} />
           <Stat label="Calls served" value={myCalls} />
-          <Stat label="Revenue (USDC)" value={myRevenue.toFixed(2)} tint="#9aa8f0" />
+          <Stat label="Revenue (CSPR)" value={myRevenue.toFixed(2)} tint="#9aa8f0" />
         </div>
       )}
 
-      <ListForm account={account} connect={connect} connecting={connecting} onCreated={refresh} />
+      <ListForm account={account} connect={connect} connecting={connecting} connectError={walletError} onCreated={refresh} />
 
       <Section label="Your endpoints" />
       {!account ? (
@@ -80,18 +81,21 @@ function ListForm({
   account,
   connect,
   connecting,
+  connectError,
   onCreated,
 }: {
-  account: `0x${string}` | null;
+  account: CasperAccount | null;
   connect: () => void;
   connecting: boolean;
+  connectError: string | null;
   onCreated: () => void;
 }) {
   const [name, setName] = useState("");
   const [upstreamUrl, setUpstreamUrl] = useState("");
   const [kind, setKind] = useState<"http" | "mcp">("http");
+  const [category, setCategory] = useState<Category>("other");
   const [method, setMethod] = useState("POST");
-  const [price, setPrice] = useState("0.01");
+  const [price, setPrice] = useState(String(MIN_TRANSFER_CSPR));
   const [description, setDescription] = useState("");
   const [authName, setAuthName] = useState("Authorization");
   const [authValue, setAuthValue] = useState("");
@@ -110,10 +114,11 @@ function ListForm({
         description: description.trim(),
         upstreamUrl: upstreamUrl.trim(),
         kind,
+        category,
         method,
         authHeaderName: authName.trim(),
         authHeaderValue: authValue.trim(),
-        priceUsdc: Number(price) || 0.01,
+        priceCspr: Number(price) || MIN_TRANSFER_CSPR,
         payTo: account,
         owner: account,
       });
@@ -130,14 +135,17 @@ function ListForm({
     }
   };
 
-  const valid = name.trim() && /^https?:\/\//.test(upstreamUrl.trim()) && Number(price) > 0;
+  const valid = name.trim() && /^https?:\/\//.test(upstreamUrl.trim()) && Number(price) >= MIN_TRANSFER_CSPR;
 
   return (
-    <Card title="List your API" sub="Your wallet receives the USDC. Your upstream URL and auth header stay private — buyers only ever hit the gateway." className="mt-7">
+    <Card title="List your API" sub="Your wallet receives the CSPR. Your upstream URL and auth header stay private — buyers only ever hit the gateway." className="mt-7">
       {!account ? (
-        <button onClick={connect} disabled={connecting} className={`${btnPrimary} mt-4`}>
-          {connecting ? "Connecting…" : "Connect wallet to list"}
-        </button>
+        <div className="mt-4">
+          <button onClick={connect} disabled={connecting} className={btnPrimary}>
+            {connecting ? "Connecting…" : "Connect wallet to list"}
+          </button>
+          {connectError && <p className="mt-3 text-[13px] text-[#e84142]">⚠ {connectError}</p>}
+        </div>
       ) : (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block">
@@ -145,7 +153,7 @@ function ListForm({
             <input className={`${fieldCls} mt-1.5`} placeholder="my-weather-api" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <label className="block">
-            <span className={microLabel}>Price (USDC / call)</span>
+            <span className={microLabel}>Price (CSPR / call, min {MIN_TRANSFER_CSPR})</span>
             <input className={`${fieldCls} mt-1.5`} value={price} onChange={(e) => setPrice(e.target.value)} />
           </label>
           <div className="block sm:col-span-2">
@@ -158,6 +166,24 @@ function ListForm({
                 MCP server
               </button>
             </div>
+          </div>
+          <div className="block sm:col-span-2">
+            <span className={microLabel}>Category</span>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {(["ai", "data", "tool", "other"] as const).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCategory(c)}
+                  className={category === c ? btnPrimary : btnGhost}
+                >
+                  {c === "ai" ? "AI" : c[0].toUpperCase() + c.slice(1)}
+                </button>
+              ))}
+            </div>
+            {category === "ai" && (
+              <p className="mt-1.5 text-[12px] text-white/35">Shows up in the AI tab for buyers looking for AI usage.</p>
+            )}
           </div>
           <label className="block sm:col-span-2">
             <span className={microLabel}>

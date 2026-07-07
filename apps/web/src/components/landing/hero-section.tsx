@@ -172,7 +172,7 @@ export function HeroSection() {
         >
           <span className="inline-flex items-center gap-3 text-sm font-mono text-white/60">
             <span className="w-8 h-px bg-white/30" />
-            Agent-to-agent LLM inference, paid per call on Avalanche
+            Any HTTP API or MCP server, paid per call on Casper
           </span>
         </div>
         
@@ -183,7 +183,7 @@ export function HeroSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
             }`}
           >
-            <span className="block whitespace-nowrap">Compute, paid per call,</span>
+            <span className="block whitespace-nowrap">Any API, paid per call,</span>
             <span className="block whitespace-nowrap">
               agents that{" "}
               <span className="relative inline-block">
@@ -203,9 +203,9 @@ export function HeroSection() {
       >
         <div className="max-w-[1400px] mx-auto flex items-start gap-10 lg:gap-20">
           {[
-            { value: "~1s", label: "AVAX settlement finality" },
+            { value: "~1s", label: "Casper settlement finality" },
             { value: "402", label: "pay-to-unlock, agent-native" },
-            { value: "0 gas", label: "optional gasless USDC (EIP-3009)" },
+            { value: "1 tx", label: "native CSPR transfer" },
           ].map((stat) => (
             <div key={stat.label} className="flex flex-col gap-2">
               <span className="text-3xl lg:text-4xl font-display text-white">{stat.value}</span>

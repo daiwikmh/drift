@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/components/dashboard/WalletContext";
 import { Card, Section, btnPrimary, btnGhost, fieldCls, microLabel } from "@/components/dashboard/ui";
-import { EXPLORER } from "@/lib/market";
+import { EXPLORER } from "@/lib/casper";
 import { listListings, callListing, type Listing } from "@/lib/listings";
 
 const short = (a: string) => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
@@ -12,7 +12,7 @@ const defaultBody = (l: Listing) =>
   l.kind === "mcp" ? '{\n  "tool": "echo",\n  "arguments": { "text": "hello" }\n}' : '{\n  "prompt": "hello"\n}';
 
 export default function Playground() {
-  const { account, connect, connecting } = useWallet();
+  const { account, connect, connecting, error: connectError } = useWallet();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState("");
@@ -101,8 +101,8 @@ export default function Playground() {
           <h1 className="font-display text-2xl tracking-tight">Playground</h1>
           {!compact && (
             <p className="mt-1 max-w-2xl text-sm text-white/45">
-              Send a real pay-per-call request to any listed endpoint. Pick one, edit the body, and pay in one gasless
-              USDC signature — you&rsquo;ll see the x402 terms, the on-chain settlement, and the response.
+              Send a real pay-per-call request to any listed endpoint. Pick one, edit the body, and pay with a signed
+              native CSPR transfer — you&rsquo;ll see the x402 terms, the on-chain settlement, and the response.
             </p>
           )}
         </div>
@@ -148,7 +148,7 @@ export default function Playground() {
                     {l.name}
                     <span className="text-white/35">
                       {" "}
-                      · ${l.priceUsdc.toFixed(2)} · {l.kind === "mcp" ? "MCP" : l.method}
+                      · {l.priceCspr.toFixed(2)} CSPR · {l.kind === "mcp" ? "MCP" : l.method}
                       {l.hasAuth ? " · keyed" : ""}
                     </span>
                   </button>
@@ -175,12 +175,11 @@ export default function Playground() {
                 <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[12px] text-white/50">
                   <span className="text-[11px] uppercase tracking-[0.16em] text-white/30">402 payment terms</span>
                   <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 font-mono">
-                    <span>scheme exact (x402)</span>
-                    <span>network avalanche-fuji</span>
+                    <span>scheme native (x402)</span>
+                    <span>network casper:casper-test</span>
                     <span className="text-[#9aa8f0]">
-                      ${selected.priceUsdc.toFixed(2)} USDC ({Math.round(selected.priceUsdc * 1e6)} units)
+                      {selected.priceCspr.toFixed(2)} CSPR ({Math.round(selected.priceCspr * 1e9)} motes)
                     </span>
-                    <span>asset USDC 0x5425…Bc65</span>
                     <span>payTo {short(selected.payTo)}</span>
                   </div>
                 </div>
@@ -203,7 +202,7 @@ export default function Playground() {
             <div className="mt-3 flex items-center gap-3">
               {account ? (
                 <button onClick={run} disabled={busy || !selected} className={btnPrimary}>
-                  {busy ? "Paying…" : `Pay $${selected?.priceUsdc.toFixed(2) ?? "0.00"} & call`}
+                  {busy ? "Paying…" : `Pay ${selected?.priceCspr.toFixed(2) ?? "0.00"} CSPR & call`}
                 </button>
               ) : (
                 <button onClick={connect} disabled={connecting} className={btnPrimary}>
@@ -211,10 +210,10 @@ export default function Playground() {
                 </button>
               )}
               {!compact && (
-                <span className="text-[12px] text-white/35">Gasless USDC — one signature, no transaction to send.</span>
+                <span className="text-[12px] text-white/35">One signed native CSPR transfer — you pay the network fee.</span>
               )}
             </div>
-            {err && <p className="mt-3 text-[13px] text-[#e84142]">⚠ {err}</p>}
+            {(err || connectError) && <p className="mt-3 text-[13px] text-[#e84142]">⚠ {err || connectError}</p>}
 
             {result && (
               <div className="mt-5 border-t border-white/10 pt-4">
@@ -222,7 +221,7 @@ export default function Playground() {
                   Response <span className="font-mono normal-case tracking-normal text-white/40">HTTP {result.status}</span>
                   {result.txHash && (
                     <a
-                      href={`${EXPLORER}/tx/${result.txHash}`}
+                      href={`${EXPLORER}/deploy/${result.txHash}`}
                       target="_blank"
                       rel="noreferrer"
                       className="ml-auto font-mono normal-case tracking-normal text-emerald-400 hover:underline"
