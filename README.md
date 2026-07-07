@@ -4,19 +4,18 @@
 
 # DRIFT
 
-### An agent marketplace on Avalanche — agents buy LLM inference and hire each other for validated jobs, settled on-chain, no human in the loop.
+### A pay-per-call gateway for HTTP APIs and MCP servers, settled on Casper.
 
-*A provider agent puts an LLM behind a paywalled API. A buyer discovers it, ranks candidates by **on-chain reputation**, pays **native AVAX** (or gasless USDC) to unlock the call, gets the result, and posts feedback on-chain. Identity and reputation live on **ERC-8004**; payment is an **x402** HTTP 402 flow. No person approves the provider, the price, or the payment.*
+*List any HTTP API or MCP server at a price. A buyer — human or agent — pays **per call in native CSPR** with one signed transfer: no keys, no invoice, no subscription. The gateway submits and verifies the payment on **Casper Testnet** and replays the call to your endpoint, which stays private.*
 
 [![Live demo](https://img.shields.io/badge/▶%20Live%20demo-drift--trader.vercel.app-9aa8f0)](https://drift-trader.vercel.app)
-[![Avalanche Fuji](https://img.shields.io/badge/Chain-Avalanche%20Fuji-e84142?logo=avalanche&logoColor=white)](https://testnet.snowtrace.io)
-[![ERC-8004](https://img.shields.io/badge/Identity-ERC--8004-627eea?logo=ethereum&logoColor=white)](https://eips.ethereum.org/EIPS/eip-8004)
+[![Casper Testnet](https://img.shields.io/badge/Chain-Casper%20Testnet-FF473E)](https://testnet.cspr.live)
 [![x402](https://img.shields.io/badge/Payments-x402-000000)](https://www.x402.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Web-Next.js-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#-license)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#license)
 
-**▶ Live app:** **[drift-trader.vercel.app](https://drift-trader.vercel.app)** — list any API/MCP server, pay per call in gasless USDC on Avalanche Fuji. Relay: `drift-production-0696.up.railway.app`.
+**▶ Live app:** **[drift-trader.vercel.app](https://drift-trader.vercel.app)** — list any API/MCP server, pay per call in native CSPR on Casper Testnet.
 
 </div>
 
@@ -24,265 +23,105 @@
 
 ## What is DRIFT?
 
-**DRIFT is an agent-to-agent compute marketplace.** A provider is a process with its own wallet, an on-chain identity, and an LLM it sells access to — exposed as an **x402-gated `/infer` endpoint**. A buyer (another agent in the terminal, or a person in the web app) discovers providers, **ranks them by on-chain reputation**, pays to unlock a single call, and posts feedback afterward. The chain is the source of truth for *who* an agent is, *how to reach and pay it*, and *how trustworthy it is*.
+**DRIFT is a pay-per-call gateway.** An owner lists an existing HTTP API or MCP server at one price — no code, just a URL. A buyer (a person in the web app, or any x402 client) pays per call by signing a plain native CSPR transfer; the gateway submits it, verifies the recorded transfer on-chain, and proxies the call to the owner's upstream. **The upstream URL and any auth key are never exposed** — buyers only ever hit the gateway.
 
-The point is **metered compute without a middleman**. There's no account, no API-key reseller, no invoice. The buyer pays per call on Avalanche; the provider verifies the payment on-chain and serves the result. Selection is driven by earned, verifiable reputation — not by a human picking a vendor.
+The point is **metered access without a middleman account**. There's no API-key reseller, no invoice, no subscription — the buyer pays on Casper before the call runs, the gateway confirms the payment on-chain, and the request goes straight through.
 
-> **The thesis:** on the agentic web, agents pay each other for work they can't do themselves. DRIFT puts identity + reputation **on-chain** (ERC-8004) and payment **on a settlement rail** (x402 over Avalanche) — so a buyer can trust a provider it has never met, and pay it in one HTTP round-trip.
+> **The protocol:** this follows the [`casper-x402`](https://github.com/make-software/casper-x402) reference's `casper:*` CAIP-2 network family and x402 HTTP flow (402 → sign → replay → settle), using a **native CSPR transfer** as the payment primitive instead of the reference's CEP-18 `transfer_with_authorization` scheme — simpler, needs no wrapped token and no facilitator signing key, at the cost of the buyer paying their own small network fee instead of a fully gasless signature.
 
 ---
 
 ## How a purchase works
 
-One agent is the **provider** (`drift agent --skills llm-inference`). The buyer is another agent's `buy` command, or the web app:
-
-Inference is **proxied through the relay** over the WebSocket the provider already
-holds — so a provider on a laptop/NAT needs no public URL.
-
 ```
-BUYER (cli `buy` / web)            RELAY (public)              PROVIDER (drift agent --skills …)
-● providers ── GET /providers ──▶  ranked by reputation        (dialed out, holds a WS)
-● buy 1 "explain proof of stake"
-   POST /infer/<addr> ──────────▶  forward over WS ──────────▶ 402 · accepts:[avax, usdc]
-  402 · { pay AVAX or USDC }  ◀──  ◀── relay returns reply ───
-● pays native AVAX on Fuji (1 tx)
-   POST /infer/<addr> +X-PAYMENT ▶  forward over WS ──────────▶ verify on-chain → run LLM
-  200 · { result, txHash }    ◀──  ◀────────────────────────── (NVIDIA NIM / OpenRouter)
-● giveFeedback(agentId, ★) on-chain ────────────────────────▶ reputation updates → ranks future buys
+BUYER (web, Casper Wallet)          DRIFT GATEWAY (/api/call/<id>)          OWNER UPSTREAM (private)
+● POST /api/call/<id> ────────────▶ 402 · PAYMENT-REQUIRED: [native CSPR]
+  402 · pay 0.01 CSPR         ◀─────
+● sign a NativeTransfer transaction via Casper Wallet (one signature, own network fee)
+  POST + PAYMENT-SIGNATURE ───────▶ submit + confirm + verify recorded transfer
+                                     ├─ HTTP → replay body verbatim ───────────▶ your API
+                                     └─ MCP  → initialize → tools/call ────────▶ your MCP server
+  200 · { result } + PAYMENT-RESPONSE: transaction ◀───────────────────────────
 ```
 
-No human approved the provider, the price, or the payment. The settlement and the feedback are **real Avalanche Fuji transactions** with explorer links — never faked. The relay only moves bytes; it can't forge identity, reputation, or payment.
-
----
-
-## Hiring an agent — validator-gated jobs
-
-Beyond instant pay-per-call, an agent can **hire** another agent for a task and pay **only when an independent validator attests the work**. This is the "trust without humans" core: a third agent — discovered and ranked the same way — judges the result, and a payment is released against a signature the buyer verifies, not a person's approval.
-
-```
-BUYER (cli `hire`)            WORKER (--skills <skill>)        VALIDATOR (--skills validator)
-● hire <skill> <brief> ─────▶ does the work
-                              ◀── delivers result (UNPAID) ──
-● forwards result ───────────────────────────────────────────▶ judges independently
-                              ◀──────── signed attestation ───  verdict + score, signed
-● verifies the signature maps to the validator's on-chain ERC-8004 identity
-● PASS → pays the worker (x402 AVAX) + giveFeedback anchored to the attestation
-● FAIL → pays nothing
-```
-
-The flow is **optimistic**: the worker delivers **before** it's paid (so it carries the deadbeat-buyer risk) and there is **no escrow contract**. Because reputation is written only when an independent validator signs off — and the buyer checks that signature against the validator's on-chain identity — a provider **can't pad its own score**, and the attestation hash is written into the feedback so the rating is provably backed by a real validation. Validators earn reputation too, so honest validation is itself a paid, ranked service.
-
-> The validator's check is real: a `trade-signal` is verified against the **live market quote** (a fabricated entry price fails); other work is scored by an impartial LLM judge. A `fail` releases no funds.
-
----
-
-## Pay-per-call APIs & MCP servers
-
-Beyond agent inference, **anyone can put an existing HTTP API or MCP server behind a paywall** — no code, just a URL and a price. The buyer (a person or an agent) pays **per call in gasless USDC** with a single signature; the DRIFT gateway settles on Avalanche Fuji and replays the call to the owner's upstream. **The upstream URL and any auth key are never exposed** — buyers only ever hit the gateway.
-
-List it in the web app: **dashboard → Pay-per-call APIs → List your API** → pick **HTTP API** or **MCP server**, paste the URL, set a USDC price. Your wallet receives the revenue.
-
-```
-BUYER (web or any x402 client)        DRIFT GATEWAY (/api/call/<id>)        OWNER UPSTREAM (private)
-● POST /api/call/<id> ───────────────▶ 402 · accepts: [USDC exact]
-  402 · { pay 0.01 USDC }        ◀────
-● sign EIP-3009 (one signature · no gas · no tx to send)
-  POST + X-PAYMENT ──────────────────▶ verify + settle via facilitator (Fuji)
-                                        ├─ HTTP → replay body verbatim ───────▶ your API
-                                        └─ MCP  → initialize → tools/call ────▶ your MCP server
-  200 · { result } + X-PAYMENT-RESPONSE:txHash ◀───────────────────────────────
-```
+No human approves the price or the payment beyond the buyer's one signature. The settlement is a **real Casper Testnet transaction** with an explorer link — never a placeholder hash.
 
 - **HTTP** listings are proxied verbatim — the buyer's JSON body is forwarded to the upstream.
 - **MCP** listings are spoken properly: the gateway runs the **Streamable HTTP** handshake (`initialize` → `notifications/initialized` → `tools/call`) on the buyer's behalf, parsing both JSON and SSE responses. The buyer just sends `{ "tool", "arguments" }` — or `{ "method": "tools/list" }` to discover.
 - **Private auth** — owners can attach a secret header (e.g. `Authorization: Bearer …`) that the gateway injects on every call, so a key-gated upstream stays gated. The secret never reaches buyers; the marketplace only shows a `keyed` tag.
 - **Durable** — listings persist in **Upstash Redis** when configured (`UPSTASH_REDIS_REST_*`), with an in-memory fallback for local dev.
 
-It's the same x402 rail as agent inference, exposed as a plain HTTP 402 endpoint — so an agent can pay and call it programmatically, not just through the UI.
+List it in the web app: **dashboard → Pay-per-call APIs → List your API** → pick **HTTP API** or **MCP server**, paste the URL, set a CSPR price. Your wallet receives the revenue.
 
 ---
 
 ## On-chain primitives
 
-DRIFT is built on two standards, both live on Avalanche Fuji:
+### Native CSPR — the payment asset
+Payments are plain native CSPR transfers — no CEP-18 token, no wrapping step. A buyer just needs testnet CSPR from the faucet to pay.
 
-### ERC-8004 — Trustless Agents *(identity + reputation + discovery)*
-We register **against the canonical registries** — no custom contract to deploy. A provider stores its **compute endpoint + price** in its registration metadata, so discovery resolves from the chain.
+### x402 "native" scheme — sign, submit, verify
+A buyer's unpaid `POST /api/call/<id>` returns **HTTP 402** with a `PAYMENT-REQUIRED` header describing the price and payee (an account-hash address). The buyer builds a `NativeTransferBuilder` transaction (`casper-js-sdk`), signs it with the **Casper Wallet** browser extension's transaction-signing interface, and replays with a `PAYMENT-SIGNATURE` header carrying the signed transaction. The gateway **submits the transaction itself** (via the public Casper Testnet RPC — no private key needed, the buyer already signed it), waits for confirmation, reads back the **recorded transfer effect** (`chain_get_block_transfers`), and checks the recipient and amount match before proxying. A used transaction hash can't be replayed.
 
-| Registry | Fuji address | Role |
-|---|---|---|
-| Identity | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | each agent = an on-chain identity; metadata holds name, skills, **endpoint, price** |
-| Reputation | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | `giveFeedback` → the score that **ranks providers**; for hired jobs the call is **anchored to the validator's attestation** (its ref + the work hash go into the feedback) |
-
-> **Validation Registry:** the third ERC-8004 registry is **not deployed on Avalanche** (the canonical set ships only Identity + Reputation here). DRIFT fills the gap **without a contract**: the validator signs an attestation and the buyer verifies that signature resolves to the validator's on-chain Identity (`ownerOf`) before paying — an off-chain attestation with an on-chain root of trust.
-
-### x402 — agent-native payments (two rails)
-A buyer's unpaid `POST /infer/<addr>` (to the relay) returns **HTTP 402** advertising how to pay; it retries with an `X-PAYMENT` header. Two schemes:
-
-- **Native AVAX** *(default)* — the buyer sends one AVAX transfer on Fuji; the provider verifies it on-chain (recipient, amount, confirmed, no replay) and serves. Simplest, works in any wallet.
-- **USDC** *(gasless)* — EIP-3009 `transferWithAuthorization` on USDC Fuji (`0x5425890298aed601595a70AB815c96711a31Bc65`); the buyer only signs, the provider settles and pays gas. Standard x402 "exact" scheme.
-
----
-
-## Architecture
-
-**The chain is the global source of truth; a thin relay is just the live wire.**
-
-```mermaid
-graph TD
-  subgraph m1["buyer"]
-    B["drift agent (buy)<br/>or web app"]
-  end
-  subgraph m2["provider (laptop / anywhere)"]
-    P["drift agent --skills llm-inference<br/>(no public URL)"]
-  end
-
-  B -->|"GET /providers · POST /infer/&lt;addr&gt; + X-PAYMENT"| R["relay (public)<br/>/providers · /infer proxy"]
-  P <-->|"WS: presence + proxied inference"| R
-
-  B -->|"read rep · pay · feedback"| CH
-  P -->|"register · verify payment"| CH
-
-  CH[("Avalanche Fuji<br/>ERC-8004 identity · reputation<br/>AVAX / USDC settlement")]
-
-  P -. "serves the inference" .-> LLM["NVIDIA NIM / OpenRouter"]
-```
-
-- **Chain (Fuji)** — identity, reputation, and payment settlement. Global; every machine sees it.
-- **Relay** — the public hub: agents *dial out* over WebSocket (NAT-safe); it serves `GET /providers` and **proxies `POST /infer/<addr>`** to the provider over that WS. Holds **no trust** — only moves bytes + reports liveness.
-- **Provider** — a `drift` agent booted with `--skills`. It answers proxied inference over its WS, so it needs **no public URL** — it can run on a laptop.
+There's no reference browser-wallet client for x402 on Casper upstream (`casper-x402`'s own client is built for a raw-digest PEM signer, meant for headless use). `lib/x402casper.ts` builds and signs the native transfer directly against the Casper Wallet extension's own transaction-signing API.
 
 ---
 
 ## Quick start
 
-**Prerequisites:** Node 20+. To transact you need a little **testnet AVAX** (and USDC for the gasless rail) from the [Avalanche Fuji faucet](https://core.app/tools/testnet-faucet/) — it's a real chain, nothing is mocked.
+**Prerequisites:** Node 20+, the [Casper Wallet browser extension](https://www.casperwallet.io/), and a little **testnet CSPR** from the [Casper Testnet faucet](https://testnet.cspr.live/tools/faucet) for both the lister and the buyer accounts — it's a real chain, nothing is mocked.
 
 ```bash
-cd apps/agent && npm install
+cd apps/web && npm install
+cp .env.example .env.local   # only Upstash is optional; no signing key needed
+npm run dev                  # http://localhost:3000
 ```
 
-Open three terminals:
+1. **Dashboard → Pay-per-call APIs** — connect Casper Wallet, list an HTTP API or MCP server at a CSPR price.
+2. **Dashboard → Playground** — pick any listed endpoint, edit the request body, pay, and see the settlement + response.
 
-```bash
-npm run relay                                            # 1 — rendezvous hub (ws + /providers on :8787)
-npm run drift -- --name oracle --skills llm-inference    # 2 — a provider; then type `setup` then `register`
-npm run drift -- --name buyer                            # 3 — a buyer
-```
-
-In the **provider** (terminal 2): `setup` to paste an OpenRouter (`sk-or-…`) or NVIDIA (`nvapi-…`) key, then `register` to mint its ERC-8004 identity (endpoint + price baked into the metadata).
-
-In the **buyer** (terminal 3):
-
-```
-> providers                         # live providers, ranked by on-chain reputation
-> buy 1 explain proof of stake      # pays AVAX, unlocks the call, prints the result + Snowtrace tx
-```
-
-The buyer pays, the provider verifies on-chain and runs the LLM, and the buyer posts ERC-8004 feedback — watch both terminals, each step links to Snowtrace.
-
-### Web app
-
-```bash
-cd apps/web && npm install && npm run dev   # http://localhost:3000
-```
-
-Connect a wallet (Core / MetaMask) on Fuji → browse providers ranked by reputation → **Pay & run** (signs an AVAX tx in the wallet, unlocks the result, shows the Snowtrace link + posts feedback). Point it at a remote relay with `NEXT_PUBLIC_RELAY_HTTP`.
-
-### Optional env (`~/.drift/` is used by default; env only overrides)
-
-```bash
-AGENT_PRIVATE_KEY=0x…       # use a specific wallet instead of the auto-created one
-RELAY_URL=wss://host        # remote relay (default ws://localhost:8787)
-FUJI_RPC_URL=               # custom Fuji RPC (defaults to the public endpoint)
-OPENROUTER_API_KEY=         # or NVIDIA_API_KEY — seeds the LLM instead of `setup`
-COMPUTE_PRICE_AVAX=0.001    # provider price per call (AVAX); COMPUTE_PRICE_USDC for the USDC rail
-```
-
-## Deploy
-
-**Live now:** web on **Vercel** → [drift-trader.vercel.app](https://drift-trader.vercel.app) · relay on **Railway** → `drift-production-0696.up.railway.app`. Full walkthrough in **[DEPLOY.md](./DEPLOY.md)**.
-
-The **web** (`apps/web`) is the whole user-facing app *and* the pay-per-call gateway — it needs no relay for pay-per-call. The **relay** (`apps/agent`) is only for the live-agent inference mesh.
-
-```bash
-# web   → Vercel: root apps/web
-#         envs: UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN  (durable listings)
-#               NEXT_PUBLIC_RELAY_HTTP=https://drift-production-0696.up.railway.app  (live agents)
-# relay → Railway: root apps/agent (ships Dockerfile + railway.json), binds $PORT — no secrets
-# CLI provider (optional, anywhere):
-RELAY_URL=wss://drift-production-0696.up.railway.app OPENROUTER_API_KEY=sk-or-… \
-  npm run drift -- --name oracle --skills llm-inference
-```
+A headless agent can buy the same way, no browser: `node scripts/x402-buy.mjs <gatewayUrl> [jsonBody]` (raw PEM key via `CLIENT_PRIVATE_KEY_PATH` — generate one with `node scripts/gen-casper-key.mjs`, then fund it from the faucet).
 
 ---
 
-## CLI
+## Deploy
 
+**Live now:** **Vercel** → [drift-trader.vercel.app](https://drift-trader.vercel.app). The whole product is `apps/web` — no separate relay or facilitator service to run, and no server-side signing key to provision.
+
+```bash
+# Vercel: root apps/web
+# envs: UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN   (durable listings — optional)
 ```
-drift relay  [--port 8787]                    run the rendezvous hub (ws + /providers)
-drift agent  [--name <n>] [--skills <a,b>]    boot an agent (default command);
-                                              --skills makes it a compute provider
-```
-
-At the `>` prompt:
-
-| Command | What it does |
-|---|---|
-| `providers` | live compute providers, **ranked by on-chain reputation** |
-| `buy <#\|url> <prompt>` | pay a provider (AVAX) and get the inference result + feedback |
-| `hire <skill> <brief>` | delegate a job — a worker delivers, an independent validator attests, you pay **on PASS** |
-| `jobs` | jobs you've started + their status |
-| `register` · `onchain` | mint my ERC-8004 identity · read it back from Fuji + explorer links |
-| `peers` · `skills` · `whoami` | agents online · what I serve · my address + balances |
-| `setup` | add / change my LLM key (OpenRouter or NVIDIA) |
-| `clear` · `quit` | clear screen · exit |
-| *natural language* | answered by my own LLM |
-
-The feed renders each step as a tool-call; the pinned status bar shows `wallet · id · buys · peers`.
 
 ---
 
 ## Status
 
-Stated honestly, because the whole point is verifiable trust:
+Stated honestly, because the whole point is a verifiable, real settlement:
 
 | Capability | Status |
 |---|---|
-| Immersive agent terminal + zero-config persisted wallet + `setup` | ✅ built |
-| Cross-machine mesh (relay + A2A, NAT-safe) + `GET /providers` for the web | ✅ built |
-| **Relay-proxied inference** (`POST /infer/<addr>` over WS — providers need no public URL) | ✅ built |
-| ERC-8004 register on Fuji, with **endpoint + price in the metadata** | ✅ built |
-| On-chain discovery + provider ranking by ERC-8004 **reputation** | ✅ built |
-| x402 inference — **native AVAX** settlement (verified on-chain) + **persistent replay guard** (a paid tx can't be replayed across restarts) | ✅ built |
-| x402 **USDC** settlement (EIP-3009, gasless for the payer) | ✅ built |
-| **Pay-per-call API/MCP gateway** — list any HTTP API or MCP server at a USDC price; buyers pay per call (gasless USDC), the gateway replays upstream with the URL + auth key kept private | ✅ built |
+| **Pay-per-call gateway** — list any HTTP API or MCP server at a CSPR price; buyers pay per call with a signed native transfer, the gateway replays upstream with the URL + auth key kept private | ✅ built |
 | **MCP-native proxying** — gateway runs the MCP Streamable-HTTP handshake (`initialize` → `tools/call`) per paid call; durable listing registry (Upstash Redis, in-memory fallback) | ✅ built |
-| `giveFeedback` on-chain after each purchase; for hired jobs **anchored to the validator's attestation** | ✅ built |
-| **Agent-to-agent validated jobs** — `hire` → deliver → independent validation → pay on PASS, no human | ✅ built |
-| **Independent validator** — signs an attestation verified against its on-chain ERC-8004 identity (gates the payment) | ✅ built |
-| Web app — landing + dashboard (buy, **register identity**, balances), Snowtrace links | ✅ built |
-| Deploy: Railway relay + Vercel web ([DEPLOY.md](./DEPLOY.md)) | ✅ built |
-| ERC-8004 Validation Registry — **not deployed on Avalanche**; substituted by signed attestations vs on-chain identity | ⚠️ n/a on-chain |
-| `hire` / `jobs` exposed in the **web** dashboard (currently CLI-only) | 🔜 planned |
+| **Submit + verify, no facilitator key** — gateway submits the buyer's already-signed transaction via public RPC and checks the recorded transfer effect; no server-side signing key at all | ✅ built |
+| **Casper Wallet browser integration** — connect, sign a real transaction, no raw-key handling in the browser | ✅ built |
+| **Headless buyer script** — a PEM-keyed agent can pay with no wallet popup (`scripts/x402-buy.mjs`) | ✅ built |
+| Web app — landing + dashboard (list, browse, playground), CSPR.live explorer links | ✅ built |
+| Mainnet support | 🔜 config-only change, not yet wired to a UI toggle |
 
-Every settlement and feedback is a real Fuji transaction with a Snowtrace link — never a placeholder hash.
+Every settlement is a real Casper Testnet transaction with an explorer link — never a placeholder hash.
 
 ---
 
 ## Tech stack
 
-**Runtime** · TypeScript · Node 20+ · ESM
+**Web** · Next.js (App Router) · React · **casper-js-sdk + Casper Wallet extension** (no wagmi/viem)
 
-**Terminal** · raw ANSI (alt-screen + scroll region) · Node `readline` · `commander`
+**Payments** · x402 protocol · plain native CSPR transfers (`NativeTransferBuilder`), no CEP-18 token
 
-**Web** · Next.js (App Router) · React · **viem + injected wallet** (no wagmi)
+**Chain** · Casper Testnet (`casper:casper-test`)
 
-**Chain** · [viem](https://viem.sh) · Avalanche Fuji (43113) · ERC-8004 · x402 · USDC (EIP-3009)
-
-**Transport** · `ws` — WebSocket rendezvous relay (dial-out) + HTTP `/providers`
-
-**Inference** · `openai` SDK → OpenRouter (`sk-or-…`) or NVIDIA NIM (`nvapi-…`), auto-detected
+**Storage** · Upstash Redis (listing registry), in-memory fallback
 
 ---
 
@@ -290,50 +129,38 @@ Every settlement and feedback is a real Fuji transaction with a Snowtrace link �
 
 ```
 drift/
-├── drift                       # repo-root launcher → ./drift [agent|relay] …
 └── apps/
-    ├── agent/                   # the DRIFT agent — npm CLI (bin: drift)
-    │   └── src/
-    │       ├── cli.ts           # commander entry — `drift agent` · `drift relay`
-    │       ├── config.ts        # env: Fuji RPC, relay URL, optional LLM seeding
-    │       ├── store.ts         # ~/.drift: persisted wallet + LLM config + agentId + replay guard
-    │       ├── llm.ts           # runtime-configurable OpenAI-compatible client
-    │       ├── chain/
-    │       │   ├── addresses.ts # Fuji ERC-8004 registries + USDC
-    │       │   ├── client.ts    # viem public/wallet clients + explorer links
-    │       │   └── registry.ts  # register · resolveProvider · reputation · feedback
-    │       ├── x402/            # payments: types · usdc · eip3009 · avax · client · server
-    │       ├── compute/
-    │       │   ├── server.ts    # the x402-gated /infer endpoint (provider)
-    │       │   ├── buy.ts       # the buyer: 402 → pay → unlock
-    │       │   └── validator.ts # independent judge + signed attestation (verified vs identity)
-    │       ├── jobs/            # validator-gated hire flow: protocol.ts + engine.ts (buyer/worker/validator)
-    │       ├── a2a/             # A2A wire protocol + dial-out client
-    │       ├── relay/server.ts  # rendezvous hub (ws + GET /providers; holds no trust)
-    │       └── cli/             # screen.ts · ui.ts · run.ts (boot, mesh, REPL)
-    └── web/                     # Next.js marketplace UI (@drift/web)
+    └── web/                          # Next.js app (@drift/web) — the whole product
+        ├── scripts/
+        │   ├── gen-casper-key.mjs    # generate a throwaway testnet keypair
+        │   └── x402-buy.mjs         # headless PEM-key buyer (no wallet popup)
         └── src/
             ├── app/
             │   ├── page.tsx              # landing
-            │   ├── dashboard/            # buy · register identity · Pay-per-call APIs (list/call)
+            │   ├── dashboard/            # list · your endpoints · playground
             │   └── api/                  # x402 gateway: /listings · /call/<id>
             └── lib/
-                ├── market.ts · chain.ts        # discover + pay · reputation + feedback
-                ├── listings.ts · x402usdc.ts   # pay-per-call client + gasless USDC signing
-                └── server/                     # registry (Upstash) · x402 · mcp (Streamable-HTTP proxy)
+                ├── casper.ts              # network config (RPC, explorer, CAIP-2 id)
+                ├── casperBalance.ts       # real on-chain CSPR balance
+                ├── listings.ts            # pay-per-call registry client
+                ├── x402casper.ts          # browser pay flow (build + sign native transfer)
+                └── server/
+                    ├── registry.ts        # listing CRUD (Upstash-backed)
+                    ├── mcp.ts             # Streamable-HTTP MCP client
+                    └── x402casper.ts      # submit + verify the recorded transfer
 ```
 
-> The repo is a focused two-app workspace (`apps/agent` + `apps/web`). An earlier Bybit quant-trading product (Python engine + a different web app + a Mantle contract) was removed when the project pivoted to the Avalanche compute marketplace; it lives in git history if ever needed.
+> An earlier build of this project was an agent-to-agent compute marketplace on Avalanche (ERC-8004 identity/reputation, an agent-mesh CLI + relay), then briefly a CEP-18/WCSPR gasless scheme on Casper. Both were replaced by this simpler native-CSPR gateway; the old code lives in git history if ever needed.
 
 ---
 
-## Why on-chain trust matters here
+## Why on-chain settlement matters here
 
-- **Identity + endpoint are on-chain.** A provider is its wallet + ERC-8004 registration; the endpoint to call it lives in that registration, not on a directory someone controls. Buyers resolve it directly.
-- **Reputation is earned, not asserted.** Feedback is posted on-chain after real, paid calls; discovery ranks by it. A brand-new provider with no history is shown as exactly that.
-- **Payment is settled, not promised.** The buyer pays on Avalanche before the result is served; the provider verifies the transfer on-chain. One HTTP round-trip, no invoice, no human approval.
+- **Payment is settled, not promised.** The buyer signs before the call runs; the gateway submits and confirms the transfer on Casper before proxying. One HTTP round-trip, no invoice.
+- **The upstream stays private.** Buyers never see the real URL or auth key — only the gateway endpoint and the x402 terms.
+- **Nothing to trust server-side.** The gateway holds no signing key — it can't move funds on anyone's behalf, only read the public chain and submit what the buyer already signed.
 
-> Testnet only. Identities and balances on Fuji are not real funds.
+> Testnet only. Balances on Casper Testnet are not real funds.
 
 ---
 
@@ -342,5 +169,5 @@ drift/
 Released under the **MIT License**.
 
 <div align="center">
-<sub>Built on <a href="https://eips.ethereum.org/EIPS/eip-8004">ERC-8004</a> · <a href="https://www.x402.org">x402</a> · <a href="https://www.avax.network">Avalanche</a></sub>
+<sub>Built on <a href="https://github.com/make-software/casper-x402">casper-x402</a> · <a href="https://www.x402.org">x402</a> · <a href="https://casper.network">Casper</a></sub>
 </div>
